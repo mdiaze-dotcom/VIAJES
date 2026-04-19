@@ -2,30 +2,62 @@ name: Generar Web SUNAT
 
 on:
   schedule:
-    - cron: '0 5 * * *'  # Diario a las 5:00 AM UTC (12:00 AM Perú)
-  workflow_dispatch:     # Permite ejecución manual desde GitHub
+    - cron: '0 5 * * *'  # Diario 5 AM UTC
+  workflow_dispatch:     # Ejecución manual
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Configurar Python
+      - name: 📥 Checkout del código
+        uses: actions/checkout@v4
+
+      - name: 🐍 Configurar Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-      - name: Instalar dependencias
-        run: pip install -r requirements.txt
-      - name: Generar página estática
+
+      - name: 📦 Instalar dependencias
+        run: |
+          pip install -r requirements.txt
+          echo "✅ Dependencias instaladas"
+
+      - name: 🔐 Verificar secrets
+        run: |
+          if [ -z "$GOOGLE_CREDENTIALS" ]; then echo "❌ Falta GOOGLE_CREDENTIALS"; exit 1; fi
+          if [ -z "$SHEET_ID" ]; then echo "❌ Falta SHEET_ID"; exit 1; fi
+          if [ -z "$APPS_SCRIPT_URL" ]; then echo "❌ Falta APPS_SCRIPT_URL"; exit 1; fi
+          echo "✅ Secrets verificados"
         env:
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
           SHEET_ID: ${{ secrets.SHEET_ID }}
           APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
-        run: python main.py
-      - name: Desplegar a GitHub Pages
+
+      - name: 🏗️ Generar index.html
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          SHEET_ID: ${{ secrets.SHEET_ID }}
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+        run: |
+          python main.py
+          echo "📋 Archivos generados:"
+          ls -la *.html || echo "⚠️ No se encontró ningún .html"
+          if [ -f "index.html" ]; then
+            echo "✅ index.html generado correctamente"
+            echo "📏 Tamaño: $(wc -c < index.html) bytes"
+          else
+            echo "❌ ERROR: index.html no fue generado"
+            exit 1
+          fi
+
+      - name: 🚀 Desplegar a GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: .
+          publish_dir: .          # ✅ Publica desde la raíz del repo
           publish_branch: gh-pages
-          keep_files: false
+          keep_files: false       # ✅ Limpia archivos viejos antes de publicar
+          force_orphan: true      # ✅ Crea rama gh-pages limpia si no existe
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
+          commit_message: 'deploy: actualizar reporte SUNAT'
