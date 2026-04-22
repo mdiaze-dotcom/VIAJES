@@ -1,9 +1,7 @@
 # =============================================================================
-# CONTROL SUNAT - VERSIÓN COMPLETA (M/R/P + GRÁFICO LÍNEAS + BOTONES FUNCIONALES)
+# CONTROL SUNAT - VERSIÓN FINAL ESTABLE (Login + Vértices + Lógica SUNAT)
 # =============================================================================
-import os, json, re
-import pandas as pd
-import gspread
+import os, json, pandas as pd, gspread
 from jinja2 import Template
 from datetime import date, timedelta
 from collections import Counter, defaultdict
@@ -14,8 +12,7 @@ APPS_SCRIPT_URL = os.environ["APPS_SCRIPT_URL"]
 CREDENTIALS_JSON = json.loads(os.environ["GOOGLE_CREDENTIALS"])
 LIMITE_SUNAT = 183
 
-PAIS_ISO = {
-    "españa":"es","perú":"pe","usa":"us","estados unidos":"us","mexico":"mx","méxico":"mx",
+PAIS_ISO = {"españa":"es","perú":"pe","usa":"us","estados unidos":"us","mexico":"mx","méxico":"mx",
     "colombia":"co","argentina":"ar","chile":"cl","ecuador":"ec","bolivia":"bo","brasil":"br",
     "italia":"it","francia":"fr","alemania":"de","canada":"ca","japon":"jp","china":"cn",
     "portugal":"pt","rusia":"ru","turquia":"tr","panama":"pa","costa rica":"cr","inglaterra":"gb",
@@ -23,76 +20,45 @@ PAIS_ISO = {
     "belgica":"be","noruega":"no","suecia":"se","dinamarca":"dk","finlandia":"fi","polonia":"pl",
     "grecia":"gr","islandia":"is","israel":"il","egipto":"eg","marruecos":"ma","sudafrica":"za",
     "australia":"au","nueva zelanda":"nz","corea del sur":"kr","singapur":"sg","malasia":"my",
-    "indonesia":"id","filipinas":"ph","vietnam":"vn","india":"in","sri lanka":"lk","emiratos arabes":"ae","dubai":"ae"
-}
-def normalizar_pais(nombre):
-    """Unifica variaciones de nombres de países a una forma estándar"""
-    if pd.isna(nombre): return "Desconocido"
-    n = str(nombre).strip().lower()
-    # Mapeo de variaciones comunes a nombre estándar
-    equivalencias = {
-        "eeuu": "Estados Unidos", "usa": "Estados Unidos", "us": "Estados Unidos",
-        "united states": "Estados Unidos", "estados unidos": "Estados Unidos",
-        "usa (estados unidos)": "Estados Unidos", "ee. uu.": "Estados Unidos",
-        "méxico": "México", "mexico": "México", "méjico": "México",
-        "reino unido": "Reino Unido", "inglaterra": "Reino Unido", "uk": "Reino Unido",
-        "gran bretaña": "Reino Unido", "british": "Reino Unido",
-        "colombia": "Colombia", "colômbia": "Colombia",
-        "españa": "España", "spain": "España",
-        # Agrega más según necesites
-    }
-    return equivalencias.get(n, str(nombre).strip().title())
-# 🔹 FUNCIONES AUXILIARES
+    "indonesia":"id","filipinas":"ph","vietnam":"vn","india":"in","sri lanka":"lk","emiratos arabes":"ae","dubai":"ae"}
+
 def parse_fecha(val):
     if pd.isna(val): return None
     try: return pd.to_datetime(str(val).strip(), dayfirst=True, errors='coerce').date()
     except: return None
 
 def eventos_a_viajes(df):
-    """Empareja SALIDA -> ENTRADA por orden cronológico (FIFO) ignorando país de retorno."""
+    """Empareja SALIDA->ENTRADA por orden cronológico (FIFO) ignorando país de retorno."""
     viajes, buffer, anomalias = [], {"M":[], "R":[], "P":[]}, []
-    
     for _, r in df.iterrows():
-        tipo, f, p, e = r["TIPO"], r["FECHA"], str(r["PAIS"]).strip(), r["ESTADO"]
+        t, f, p, e = r["TIPO"], r["FECHA"], str(r["PAIS"]).strip(), r["ESTADO"]
         if e not in buffer: continue
-        
-        if tipo == "SALIDA":
-            buffer[e].append({"salida": f, "estado": e, "pais": p})
-        elif tipo == "ENTRADA":
-            if not buffer[e]:
-                anomalias.append(f"⚠️ {e}: Entrada sin salida ({f.strftime('%d/%m/%Y')})")
-            else:
-                ini = buffer[e].pop(0) # ✅ FIFO: cierra la salida más antigua pendiente
-                dias = max(0, (f - ini["salida"]).days - 1) # Regla SUNAT
-                viajes.append({
-                    "salida": ini["salida"], "entrada": f,
-                    "pais": ini["pais"],  # ✅ País del viaje = País de SALIDA
-                    "dias": dias, "estado": ini["estado"], "en_curso": False
-                })
-                
-    # Cierra viajes abiertos (en_curso)
+        if t == "SALIDA":
+            buffer[e].append({"s": f, "e": e, "p": p})
+        elif t == "ENTRADA" and buffer[e]:
+            ini = buffer[e].pop(0)
+            d = max(0, (f - ini["s"]).days - 1)  # Regla SUNAT estricta
+            viajes.append({"salida":ini["s"], "entrada":f, "pais":ini["p"], "dias":d, "estado":ini["e"], "en_curso":False})
+        elif t == "ENTRADA":
+            anomalias.append(f"⚠️ Entrada sin salida {p}")
     hoy = date.today()
-    for e, pendientes in buffer.items():
-        for ini in pendientes:
-            dias = max(0, (hoy - ini["salida"]).days - 1)
-            viajes.append({"salida":ini["salida"], "entrada":hoy, "pais":ini["pais"], "dias":dias, "estado":e, "en_curso":True})
-            anomalias.append(f"ℹ️ {e}: En curso {ini['pais']}")
-            
+    for est, list in buffer.items():
+        for ini in list:
+            d = max(0, (hoy - ini["s"]).days - 1)
+            viajes.append({"salida":ini["s"], "entrada":hoy, "pais":ini["p"], "dias":d, "estado":est, "en_curso":True})
+            anomalias.append(f"ℹ️ En curso {ini['p']}")
     return pd.DataFrame(viajes), anomalias
 
 def resumen_ventana(vdf, ref, dias=365):
-    """Calcula días acumulados por estado en ventana móvil"""
     if vdf.empty: return {"M":0,"R":0,"P":0}, 0
     end, start = ref, ref - timedelta(days=dias-1)
     tot = {"M":0,"R":0,"P":0}
     for _, v in vdf.iterrows():
-        s = max(v["salida"] + timedelta(days=1), start)
-        e = min(v["entrada"] - timedelta(days=1), end)
+        s, e = max(v["salida"]+timedelta(days=1), start), min(v["entrada"]-timedelta(days=1), end)
         if s <= e: tot[v["estado"]] += (e - s).days + 1
     return tot, sum(tot.values())
 
 def grafica_mensual(vdf):
-    """Agregación mensual exacta (misma regla SUNAT)"""
     datos = defaultdict(lambda: {"M":0,"R":0,"P":0})
     if vdf.empty: return datos
     for _, v in vdf.iterrows():
@@ -100,8 +66,7 @@ def grafica_mensual(vdf):
         if s > e: continue
         c = s
         while c <= e:
-            if c.year >= 2000:
-                datos[f"{c.year}-{c.month:02d}"][v["estado"]] += 1
+            if c.year >= 2000: datos[f"{c.year}-{c.month:02d}"][v["estado"]] += 1
             c += timedelta(days=1)
     return dict(sorted(datos.items()))
 
@@ -122,10 +87,9 @@ viajes_df, anomalias = eventos_a_viajes(df)
 d12m, t12m = resumen_ventana(viajes_df, hoy)
 danio, tanio = resumen_ventana(viajes_df, date(hoy.year, 12, 31))
 
-if t12m < 150: c12,e12,m12 = "green","🟢 Sin riesgo","Viajes dentro del límite."
-elif t12m < 183: c12,e12,m12 = "orange","🟡 Posible riesgo",f"Acumulados {t12m} días. Evalúa reducir."
-else: c12,e12,m12 = "red","🔴 En riesgo",f"{t12m} días. Riesgo de pérdida fiscal."
-
+if t12m < 150: c12,e12,m12 = "green","🟢 Sin riesgo","Límite seguro"
+elif t12m < 183: c12,e12,m12 = "orange","🟡 Posible riesgo",f"Acumulados {t12m} días"
+else: c12,e12,m12 = "red","🔴 En riesgo",f"{t12m} días. Riesgo fiscal"
 ca,ea,ma = ("green","🟢 Sin riesgo","") if tanio<150 else ("orange","🟡 Posible riesgo","") if tanio<183 else ("red","🔴 En riesgo","")
 
 grafica = grafica_mensual(viajes_df)
@@ -137,54 +101,33 @@ for k in sorted(grafica):
     vM.append(grafica[k]["M"]); vR.append(grafica[k]["R"]); vP.append(grafica[k]["P"])
 
 ranking = {}
-for est in ["M", "R", "P"]:
-    # Filtrar viajes finalizados del estado actual
-    fil = viajes_df[(viajes_df["estado"] == est) & (~viajes_df["en_curso"])].copy()
-    
-    # Normalizar nombres de países ANTES de agrupar
-    fil["pais_norm"] = fil["pais"].apply(normalizar_pais)
-    
-    # Sumar días exactos por país normalizado
-    dias_por_pais = defaultdict(int)
-    for _, r in fil.iterrows():
-        if r["dias"] > 0:  # Solo incluir si tiene días reales
-            dias_por_pais[r["pais_norm"]] += int(r["dias"])
-    
-    # Debug: mostrar qué se está procesando
-    total_paises = len(dias_por_pais)
-    total_dias = sum(dias_por_pais.values())
-    print(f"📊 Ranking {est} | Países con días>0: {total_paises} | Total días: {total_dias}")
-    
-    # Top 5 ordenado descendente
-    top_5 = sorted(dias_por_pais.items(), key=lambda x: x[1], reverse=True)[:5]
-    
-    ranking[est] = [
-        {"pais": p, "dias": d, "iso": PAIS_ISO.get(p.lower().strip(), "xx")} 
-        for p, d in top_5
-    ]
-    
-    # Mostrar detalles del top 5
-    for p, d in top_5:
-        print(f"   • {p}: {d} días")
-    
-    # 🔍 Alerta si EEUU no aparece pero debería
-    if "Estados Unidos" in dias_por_pais and "Estados Unidos" not in [x[0] for x in top_5]:
-        print(f"   ⚠️ ALERTA: Estados Unidos tiene {dias_por_pais['Estados Unidos']} días pero no está en top 5. Revisa si hay más de 5 países con más días.")
-        
+for est in ["M","R","P"]:
+    fil = viajes_df[(viajes_df["estado"]==est) & (~viajes_df["en_curso"])]
+    dias_p = defaultdict(int)
+    for _, r in fil.iterrows(): dias_p[r["pais"]] += int(r["dias"])
+    ranking[est] = [{"pais":p,"dias":d,"iso":PAIS_ISO.get(p.lower().strip(),"xx")} for p,d in sorted(dias_p.items(), key=lambda x: x[1], reverse=True)[:5]]
+
+# 🔑 SERIALIZACIÓN SEGURA (Evita TypeError: date not JSON serializable)
 viajes_js = []
 if not viajes_df.empty:
     for _, r in viajes_df.iterrows():
         viajes_js.append({
-            "pais": r["pais"],
+            "pais": str(r["pais"]),
             "salida_str": r["salida"].strftime("%Y-%m-%d"),
             "entrada_str": r["entrada"].strftime("%Y-%m-%d"),
-            "estado": r["estado"],
-            "en_curso": r["en_curso"],
-            "dias": r["dias"]
+            "estado": str(r["estado"]),
+            "en_curso": bool(r["en_curso"]),
+            "dias": int(r["dias"])
         })
 
+config_str = json.dumps({
+    "app_url": APPS_SCRIPT_URL, "dias_12m": int(t12m), "dias_por_estado_12m": d12m,
+    "dias_anio": int(tanio), "dias_por_estado_anio": danio, "anomalias": anomalias,
+    "ranking": ranking, "viajes": viajes_js, "lbl": lbl, "vM": vM, "vR": vR, "vP": vP, "limite": LIMITE_SUNAT
+})
+
 # =============================================================================
-# PLANTILLA HTML (EXPANDIDA, LEGIBLE Y 100% FUNCIONAL)
+# PLANTILLA HTML (LOGIN + VÉRTICES + DASHBOARD FUNCIONAL)
 # =============================================================================
 html_template = """<!DOCTYPE html>
 <html lang="es">
@@ -194,23 +137,14 @@ html_template = """<!DOCTYPE html>
 <title>Control SUNAT</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
 <style>
-  /* RESET & BASE */
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
   body{font-family:system-ui,-apple-system,sans-serif;overflow-x:hidden;background:#f8f9fa}
-  
-  /* 🔐 LOGIN SCREEN */
-  #login-screen{position:fixed;top:0;left:0;width:100%;height:100vh;background:linear-gradient(135deg,#0f172a,#1e293b);z-index:9999;display:flex;align-items:center;justify-content:center}
-  #bg-canvas{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1}
-  .login-box{position:relative;z-index:10000;background:rgba(255,255,255,0.95);backdrop-filter:blur(10px);padding:40px 30px;border-radius:16px;width:90%;max-width:340px;text-align:center;box-shadow:0 25px 50px rgba(0,0,0,0.5)}
-  .login-box h2{margin:0 0 25px;color:#0f172a;font-size:1.5rem;font-weight:800}
-  .login-box input{width:100%;padding:14px;margin:8px 0 16px;border:2px solid #e2e8f0;border-radius:8px;font-size:1rem;transition:0.3s}
-  .login-box input:focus{border-color:#3b82f6;outline:none;box-shadow:0 0 0 3px rgba(59,130,246,0.2)}
-  .login-box button{width:100%;padding:14px;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;transition:0.3s}
-  .login-box button:hover{background:#2563eb;transform:translateY(-2px)}
-  .error-msg{color:#ef4444;font-size:0.9rem;margin-top:15px;display:none;font-weight:500}
-
-  /* 📱 MAIN APP */
-  #main-app{display:none;padding:12px;min-height:100vh;background:#f8f9fa}
+  #bg{position:fixed;top:0;left:0;width:100%;height:100vh;z-index:1}
+  #login{position:fixed;top:0;left:0;width:100%;height:100vh;background:linear-gradient(135deg,#0f172a,#1e293b);z-index:100;display:flex;align-items:center;justify-content:center}
+  #box{position:relative;z-index:101;background:rgba(255,255,255,0.95);backdrop-filter:blur(10px);padding:30px;border-radius:16px;width:90%;max-width:340px;text-align:center;box-shadow:0 25px 50px rgba(0,0,0,0.5)}
+  #box input{width:100%;padding:14px;margin:8px 0 16px;border:2px solid #e2e8f0;border-radius:8px;font-size:1rem}
+  #box button{width:100%;padding:14px;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer}
+  #app{display:none;padding:12px;position:relative;z-index:50;min-height:100vh;background:#f8f9fa}
   .card{background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,0.08)}
   .status-green{border-left:5px solid #198754}.status-orange{border-left:5px solid #fd7e14}.status-red{border-left:5px solid #dc3545}
   h1,h2,h3{margin:0 0 8px;font-weight:600}h1{font-size:1.25rem}h2{font-size:1.1rem}h3{font-size:1rem}
@@ -220,39 +154,33 @@ html_template = """<!DOCTYPE html>
   .badge-M{background:#3b82f6;color:#fff}.badge-R{background:#22c55e;color:#fff}.badge-P{background:#f59e0b;color:#000}
   .alert{background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:10px;margin:8px 0;font-size:0.85rem;color:#664d03}
   .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:480px){.grid-2{grid-template-columns:1fr}}
-  .chart-wrap{position:relative;width:100%;height:240px;margin-top:8px;min-height:240px;background:#fafafa;border-radius:8px}
+  .chart-wrap{position:relative;width:100%;height:240px;margin-top:8px;background:#fafafa;border-radius:8px}
   canvas{display:block;width:100%!important;height:100%!important}
-  .btn{display:inline-flex;align-items:center;gap:6px;background:#0d6efd;color:#fff;border:none;border-radius:8px;padding:10px 14px;font-size:0.9rem;cursor:pointer;margin:4px 2px}
-  .btn:hover{opacity:0.95}.btn-outline{background:transparent;border:1px solid #0d6efd;color:#0d6efd}
-  .form-group{margin:10px 0}.form-group label{display:block;font-size:0.85rem;margin-bottom:4px;color:#495057}
-  .form-group input,.form-group select{width:100%;padding:8px;border:1px solid #ced4da;border-radius:6px;font-size:0.9rem}
-  .result-box{background:#f8f9fa;border-radius:8px;padding:10px;margin-top:10px;font-size:0.9rem}
-  .hidden{display:none}.loading{opacity:0.6;pointer-events:none}
-  .table-responsive{overflow-x:auto;margin-top:8px}table{width:100%;border-collapse:collapse;font-size:0.9rem}
-  th,td{padding:8px 10px;text-align:left;border-bottom:1px solid #eee}th{background:#f1f3f4;font-weight:600}
+  .btn{background:#0d6efd;color:#fff;border:none;border-radius:8px;padding:10px 14px;cursor:pointer;margin:4px 2px}
+  .btn-outline{background:transparent;border:1px solid #0d6efd;color:#0d6efd}
+  .hidden{display:none}
+  table{width:100%;border-collapse:collapse;font-size:0.9rem;margin-top:10px}
+  th,td{padding:8px;border-bottom:1px solid #eee;text-align:left}
   .ranking-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #eee}
   .ranking-flag{width:24px;height:16px;border-radius:3px;object-fit:cover;margin-right:10px;border:1px solid #eee}
   .footer{text-align:center;font-size:0.7rem;color:#6c757d;margin-top:16px}
-  .legend{display:flex;gap:12px;justify-content:center;margin:8px 0;font-size:0.8rem}.legend-item{display:flex;align-items:center;gap:4px}
-  .dot{width:12px;height:12px;border-radius:50%}
 </style>
 </head>
 <body>
 
-<!-- 🔐 LOGIN -->
-<div id="login-screen">
-  <canvas id="bg-canvas"></canvas>
-  <div class="login-box">
+<canvas id="bg"></canvas>
+
+<div id="login">
+  <div id="box">
     <h2>🔐 Acceso Seguro</h2>
-    <input type="text" id="user" placeholder="Usuario" value="admin">
-    <input type="password" id="pass" placeholder="Contraseña">
-    <button id="btn-login" onclick="intentarLogin()">INGRESAR</button>
-    <p id="error-msg" class="error-msg">❌ Usuario o contraseña incorrectos</p>
+    <input id="u" placeholder="Usuario" value="admin">
+    <input id="p" type="password" placeholder="Contraseña">
+    <button onclick="entrar()">INGRESAR</button>
+    <p id="err" style="color:red;display:none;margin-top:10px">Usuario o contraseña incorrectos</p>
   </div>
 </div>
 
-<!-- 📱 APP -->
-<div id="main-app">
+<div id="app">
   <div class="card status-{{c12}}">
     <h1>🇵🇪 Estado Residencia Fiscal</h1>
     <div class="metric">{{e12}}</div>
@@ -260,139 +188,110 @@ html_template = """<!DOCTYPE html>
     <p style="margin:8px 0 0"><strong>Total 12m:</strong> {{dias_12m}} / {{limite}}d</p>
     <div style="font-size:0.85rem;color:#6c757d">🔵M:{{dias_por_estado_12m.M}} | 🟢R:{{dias_por_estado_12m.R}} | 🟡P:{{dias_por_estado_12m.P}}</div>
     {% if anomalias %}<div class="alert">⚠️ {{', '.join(anomalias[:3])}}</div>{% endif %}
-    {% if dias_12m>=limite %}<div class="alert" style="background:#f8d7da;border-color:#dc3545;color:#842029">🔴 <strong>ALERTA:</strong> >{{limite}} días.</div>{% endif %}
   </div>
   <div class="grid-2">
     <div class="card status-{{c12}}"><h3>📅 12 meses</h3><div class="metric" style="font-size:1.6rem">{{dias_12m}}d</div><span class="badge badge-{{'green' if dias_12m<150 else 'orange' if dias_12m<183 else 'red'}}">{{e12}}</span></div>
     <div class="card status-{{ca}}"><h3>🗓️ Año {{anio_act}}</h3><div class="metric" style="font-size:1.6rem">{{dias_anio}}d</div><span class="badge badge-{{'green' if dias_anio<150 else 'orange' if dias_anio<183 else 'red'}}">{{ea}}</span></div>
   </div>
-  <div class="card"><h2>📈 Evolución (M/R/P)</h2><div class="legend"><span class="legend-item"><span class="dot" style="background:#3b82f6"></span>M</span><span class="legend-item"><span class="dot" style="background:#22c55e"></span>R</span><span class="legend-item"><span class="dot" style="background:#f59e0b"></span>P</span></div><div class="chart-wrap"><canvas id="chart"></canvas></div></div>
-  <div class="card"><h2>🌍 Top Países</h2><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px">
-    {% for est in ["M","R","P"] %}
-    <div style="background:#f8f9fa;border-radius:8px;padding:8px"><strong class="badge badge-{{est}}">{{est}}</strong>
-      {% if ranking[est] %}{% for r in ranking[est] %}
-        <div class="ranking-item"><img src="https://flagcdn.com/w40/{{r.iso}}.png" class="ranking-flag" onerror="this.style.display='none'"><span style="font-size:0.8rem">{{r.pais|title}}</span><span style="font-size:0.75rem;background:#e9ecef;padding:2px 6px;border-radius:4px">{{r.dias}}d</span></div>
-      {% endfor %}{% else %}<p style="font-size:0.75rem;color:#6c757d;margin:4px 0">-</p>{% endif %}
-    </div>{% endfor %}
-  </div></div>
-  <div class="card"><button id="btn-p" class="btn" style="background:#f59e0b;color:#000">✈️ Proyecciones</button>
-    <div id="form-p" class="hidden" style="margin-top:12px"><div id="cont-p"></div><button id="btn-add-p" class="btn btn-outline" style="margin:8px 0">+ Itinerario</button><button id="btn-save-p" class="btn" style="background:#22c55e">💾 Guardar</button><div id="res-p" class="result-box hidden"></div></div>
-  </div>
+  <div class="card"><h2>📈 Evolución (M/R/P)</h2><div class="chart-wrap"><canvas id="chart"></canvas></div></div>
+  <div class="card"><h2>🌍 Top Países</h2><div id="rank"></div></div>
   <div class="card"><h2>📋 Historial</h2>
     <div style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-outline" onclick="window.filtro('todos')" style="padding:6px 12px;font-size:0.8rem">Todos</button>
-      <button class="btn" style="padding:6px 12px;font-size:0.8rem;background:#3b82f6" onclick="window.filtro('M')">M</button>
-      <button class="btn" style="padding:6px 12px;font-size:0.8rem;background:#22c55e" onclick="window.filtro('R')">R</button>
-      <button class="btn" style="padding:6px 12px;font-size:0.8rem;background:#f59e0b;color:#000" onclick="window.filtro('P')">P</button>
+      <button class="btn btn-outline" onclick="window.filtro('todos')">Todos</button>
+      <button class="btn" style="background:#3b82f6" onclick="window.filtro('M')">M</button>
+      <button class="btn" style="background:#22c55e" onclick="window.filtro('R')">R</button>
+      <button class="btn" style="background:#f59e0b;color:#000" onclick="window.filtro('P')">P</button>
     </div>
-    <div class="table-responsive"><table><thead><tr><th>Salida</th><th>Retorno</th><th>País</th><th>Días</th><th>Est</th></tr></thead><tbody id="tb"></tbody></table></div>
+    <div id="hist"></div>
   </div>
-  <div class="footer">Cálculo Art. 7° LIR.</div>
+  <div class="footer">Cálculo Art. 7° LIR. No sustituye asesoría.</div>
 </div>
 
-<!-- ✅ DATOS INYECTADOS (CORRECCIÓN CRÍTICA: | safe) -->
 <script id="app-config" type="application/json">{{ config_str | safe }}</script>
-
 <script>
 // ==========================================
-// 1. ANIMACIÓN VÉRTICES (AISLADA)
+// 1. ANIMACIÓN VÉRTICES (Ejecuta inmediatamente)
 // ==========================================
-(function() {
-  const canvas = document.getElementById('bg-canvas');
-  if (!canvas) { console.warn('Canvas no encontrado'); return; }
-  const ctx = canvas.getContext('2d');
-  let particles = [];
-  const count = 50;
-
-  function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
-  window.addEventListener('resize', resize); resize();
-
-  class P {
-    constructor() { this.x=Math.random()*canvas.width; this.y=Math.random()*canvas.height; this.vx=(Math.random()-0.5)*1.5; this.vy=(Math.random()-0.5)*1.5; }
-    update() { this.x+=this.vx; this.y+=this.vy; if(this.x<0||this.x>canvas.width) this.vx*=-1; if(this.y<0||this.y>canvas.height) this.vy*=-1; }
-    draw() { ctx.fillStyle='rgba(147,197,253,0.8)'; ctx.beginPath(); ctx.arc(this.x,this.y,2,0,Math.PI*2); ctx.fill(); }
-  }
-  for(let i=0;i<count;i++) particles.push(new P());
-
-  function loop() {
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    for(let i=0;i<particles.length;i++) {
-      particles[i].update(); particles[i].draw();
-      for(let j=i;j<particles.length;j++) {
-        const dx=particles[i].x-particles[j].x, dy=particles[i].y-particles[j].y, dist=Math.sqrt(dx*dx+dy*dy);
-        if(dist<140) { ctx.strokeStyle=`rgba(147,197,253,${0.4-dist/350})`; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(particles[i].x,particles[i].y); ctx.lineTo(particles[j].x,particles[j].y); ctx.stroke(); }
-      }
+(function(){
+  const cv=document.getElementById('bg'),x=cv.getContext('2d');let pts=[];
+  function rsz(){cv.width=innerWidth;cv.height=innerHeight}
+  addEventListener('resize',rsz);rsz();
+  for(let i=0;i<60;i++)pts.push({x:Math.random()*cv.width,y:Math.random()*cv.height,vx:Math.random()*2-1,vy:Math.random()*2-1});
+  function loop(){x.clearRect(0,0,cv.width,cv.height);x.fillStyle='rgba(147,197,253,0.7)';
+    pts.forEach(p=>{p.x+=p.vx;p.y+=p.vy;if(p.x<0||p.x>cv.width)p.vx*=-1;if(p.y<0||p.y>cv.height)p.vy*=-1;
+    x.beginPath();x.arc(p.x,p.y,2,0,Math.PI*2);x.fill()});
+    for(let i=0;i<pts.length;i++)for(let j=i;j<pts.length;j++){
+      const dx=pts[i].x-pts[j].x,dy=pts[i].y-pts[j].y,d=Math.sqrt(dx*dx+dy*dy);
+      if(d<150){x.strokeStyle=`rgba(147,197,253,${0.4-d/375})`;x.lineWidth=1;x.beginPath();x.moveTo(pts[i].x,pts[i].y);x.lineTo(pts[j].x,pts[j].y);x.stroke();}
     }
-    requestAnimationFrame(loop);
-  }
+  requestAnimationFrame(loop);}
   loop();
-  console.log('✅ Animación iniciada');
 })();
 
 // ==========================================
 // 2. LOGIN
 // ==========================================
-function intentarLogin() {
-  const u = document.getElementById('user').value;
-  const p = document.getElementById('pass').value;
-  console.log('Intentando login...');
-  
-  if (u === 'admin' && p === 'admin') {
-    document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('main-app').style.display = 'block';
-    console.log('✅ Login exitoso. Iniciando App...');
-    iniciarApp(); 
-  } else {
-    document.getElementById('error-msg').style.display = 'block';
-    console.warn('❌ Login fallido');
-    setTimeout(() => document.getElementById('error-msg').style.display = 'none', 2000);
-  }
+function entrar(){
+  if(document.getElementById('u').value==='admin'&&document.getElementById('p').value==='admin'){
+    document.getElementById('login').style.display='none';
+    document.getElementById('app').style.display='block';
+    renderDashboard();
+  } else { document.getElementById('err').style.display='block'; }
 }
-document.getElementById('pass').addEventListener('keypress', e => { if(e.key==='Enter') intentarLogin(); });
+document.getElementById('p').addEventListener('keypress', e => { if(e.key==='Enter') entrar(); });
 
 // ==========================================
-// 3. APP LOGIC
+// 3. DASHBOARD (Solo tras login exitoso)
 // ==========================================
-function iniciarApp() {
+function renderDashboard(){
   try {
-    console.log('Cargando configuración...');
-    // Leer JSON inyectado
     const raw = document.getElementById('app-config')?.textContent;
-    if (!raw) throw new Error("Datos no encontrados en #app-config");
-    
-    const C = JSON.parse(raw); // Esto fallaba antes si no usabas | safe
-    console.log('✅ Datos cargados | Meses:', C.lbl.length);
+    if(!raw) throw new Error("Configuración no encontrada");
+    const C = JSON.parse(raw);
+    console.log('✅ Dashboard cargado | Meses:', C.lbl.length);
 
-    const parseFecha = s => { const p=s?.trim().split('/')||[]; return new Date(+p[2],+p[1]-1,+p[0]); };
-    const regex = /^\\d{1,2}\\/\\d{1,2}\\/\\d{4}$/;
-
-    // TABLA
+    // Tabla
     window.filtro = f => {
-      const t = document.getElementById('tb'); if(!t) return; t.innerHTML='';
-      const d = f==='todos'?C.viajes:C.viajes.filter(v=>v.estado===f);
-      if(!d.length){t.innerHTML='<tr><td colspan="5" style="padding:20px;text-align:center;color:#6c757d">Sin datos</td></tr>';return;}
-      d.slice().reverse().forEach(v => { 
-        t.innerHTML += `<tr><td>${v.salida_str.split('-').reverse().join('/')}</td><td>${v.entrada_str.split('-').reverse().join('/')}</td><td>${v.pais}</td><td style="text-align:right">${v.dias}</td><td><span class="badge badge-${v.estado}">${v.estado}</span></td></tr>`; 
-      });
+      const t = document.getElementById('hist'); if(!t) return;
+      const d = f==='todos' ? C.viajes : C.viajes.filter(v=>v.estado===f);
+      let h = '<table><tr><th>Salida</th><th>Retorno</th><th>País</th><th>Días</th><th>Estado</th></tr>';
+      if(!d.length) h += '<tr><td colspan="5" style="text-align:center;color:#6c757d;padding:15px">Sin datos</td></tr>';
+      else d.slice().reverse().forEach(v => h += `<tr><td>${v.salida_str.split('-').reverse().join('/')}</td><td>${v.entrada_str.split('-').reverse().join('/')}</td><td>${v.pais}</td><td style="text-align:right">${v.dias}</td><td><span class="badge badge-${v.estado}">${v.estado}</span></td></tr>`);
+      t.innerHTML = h + '</table>';
     };
     window.filtro('todos');
 
-    // GRÁFICO
+    // Ranking
+    let rhtml = '<div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:5px">';
+    for(let est of ["M","R","P"]){
+      rhtml += `<div style="background:#f8f9fa;padding:10px;min-width:120px;border-radius:8px"><strong class="badge badge-${est}">${est}</strong>`;
+      (C.ranking[est]||[]).forEach(r => rhtml += `<div class="ranking-item"><img src="https://flagcdn.com/w40/${r.iso}.png" class="ranking-flag" onerror="this.style.display='none'"><span style="font-size:0.8rem">${r.pais}</span><span style="font-size:0.75rem;background:#e9ecef;padding:2px 6px;border-radius:4px">${r.dias}d</span></div>`);
+      rhtml += '</div>';
+    }
+    document.getElementById('rank').innerHTML = rhtml + '</div>';
+
+    // Gráfico
     setTimeout(() => {
       const ctx = document.getElementById('chart');
-      if (ctx && C.lbl?.length) {
+      if(ctx && C.lbl.length > 0){
         new Chart(ctx, {
           type: 'line',
-           { labels: C.lbl, datasets: [{label:'M', C.vM, borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,0.1)', fill:true, tension:0.3},{label:'R', C.vR, borderColor:'#22c55e', backgroundColor:'rgba(34,197,94,0.1)', fill:true, tension:0.3},{label:'P', C.vP, borderColor:'#f59e0b', backgroundColor:'rgba(245,158,11,0.1)', fill:true, tension:0.3}] },
-          options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{ticks:{maxRotation:45,autoSkip:true,maxTicksLimit:10},grid:{display:false}},y:{beginAtZero:true,grid:{color:'rgba(0,0,0,0.05)'}}} }
+           {
+            labels: C.lbl,
+            datasets: [
+              {label:'Migraciones', data:C.vM, borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,0.1)', fill:true, tension:0.3},
+              {label:'Registro', data:C.vR, borderColor:'#22c55e', backgroundColor:'rgba(34,197,94,0.1)', fill:true, tension:0.3},
+              {label:'Proyectado', data:C.vP, borderColor:'#f59e0b', backgroundColor:'rgba(245,158,11,0.1)', fill:true, tension:0.3}
+            ]
+          },
+          options: {responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{ticks:{maxRotation:45,autoSkip:true,maxTicksLimit:10,font:{size:9}},grid:{display:false}},y:{beginAtZero:true,ticks:{stepSize:5,font:{size:9}},grid:{color:'rgba(0,0,0,0.05)'}}}}
         });
-        console.log('📈 Gráfico renderizado');
       }
-    }, 100);
+    }, 150);
 
   } catch(err) {
-    console.error('❌ Error crítico al iniciar:', err);
-    alert('Error al cargar la app. Revisa la consola (F12) para detalles.');
+    console.error('❌ Error Dashboard:', err);
+    alert('Error al cargar el panel. Revisa F12 > Console.');
   }
 }
 </script>
@@ -400,34 +299,16 @@ function iniciarApp() {
 </html>"""
 
 # =============================================================================
-# RENDERIZADO FINAL (CORREGIDO: Pasa variables explícitas a Jinja2)
+# GENERACIÓN FINAL
 # =============================================================================
-# =============================================================================
-# 📊 PREPARACIÓN FINAL Y GENERACIÓN
-# =============================================================================
-grafica = grafica_mensual(viajes_df)
-meses_es = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
-lbl, vM, vR, vP = [], [], [], []
-for k in sorted(grafica.keys()):
-    y, m = k.split("-")
-    lbl.append(f"{meses_es[int(m)-1]} {y}")
-    vM.append(grafica[k]["M"]); vR.append(grafica[k]["R"]); vP.append(grafica[k]["P"])
-
-# Crear JSON seguro
-config_str = json.dumps({
-    "app_url": APPS_SCRIPT_URL, "dias_12m": t12m, "dias_por_estado_12m": d12m,
-    "dias_anio": tanio, "dias_por_estado_anio": danio, "anomalias": anomalias,
-    "ranking": ranking, "viajes": viajes_js, "lbl": lbl, "vM": vM, "vR": vR, "vP": vP, "limite": LIMITE_SUNAT
-})
-
-# Renderizar con config_str como variable explícita
 html_final = Template(html_template).render(
-    c12=c12, e12=e12, m12=m12, limite=LIMITE_SUNAT, dias_12m=t12m, dias_por_estado_12m=d12m,
-    anomalias=anomalias, ca=ca, ea=ea, ma=ma, anio_act=hoy.year, dias_anio=tanio,
+    c12=c12, e12=e12, m12=m12, limite=LIMITE_SUNAT,
+    dias_12m=t12m, dias_por_estado_12m=d12m, anomalias=anomalias,
+    ca=ca, ea=ea, ma=ma, anio_act=hoy.year, dias_anio=tanio,
     ranking=ranking, config_str=config_str
 )
 
-with open("index.html", "w", encoding="utf-8") as f: f.write(html_final)
-print("✅ index.html generado correctamente | Login: admin/admin")
-
+with open("index.html", "w", encoding="utf-8") as f:
+    f.write(html_final)
+print("✅ index.html generado correctamente | Login: admin / admin")
 
