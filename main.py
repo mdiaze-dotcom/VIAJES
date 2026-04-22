@@ -236,19 +236,15 @@ html_template = """<!DOCTYPE html>
   table{width:100%;border-collapse:collapse;font-size:0.9rem}
   th,td{padding:8px 10px;text-align:left;border-bottom:1px solid #eee}
   th{background:#f1f3f4;font-weight:600}
-  tr.total-row{background:#e8f4fd;font-weight:700}
-  .ranking-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #eee}
+  .ranking-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #eee}
   .ranking-item:last-child{border-bottom:none}
   .ranking-flag{width:24px;height:16px;border-radius:3px;object-fit:cover;margin-right:10px;border:1px solid #eee}
-  .ranking-pais{flex:1;font-weight:500}
-  .ranking-cant{background:#0d6efd;color:#fff;border-radius:12px;padding:3px 10px;font-size:0.8rem;font-weight:600}
   .footer{text-align:center;font-size:0.7rem;color:#6c757d;margin-top:16px}
-  .range-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-  @media(max-width:380px){.range-grid{grid-template-columns:1fr}}
   .estado-legend{display:flex;gap:12px;justify-content:center;margin:8px 0;font-size:0.8rem}
   .estado-item{display:flex;align-items:center;gap:4px}
   .estado-dot{width:12px;height:12px;border-radius:50%}
   .chart-legend{display:flex;gap:16px;justify-content:center;margin-top:8px;font-size:0.75rem}
+  .btn-edit{background:#f59e0b;color:#000;border:none;padding:4px 8px;border-radius:4px;font-size:0.75rem;cursor:pointer}
 </style>
 </head>
 <body>
@@ -263,40 +259,25 @@ html_template = """<!DOCTYPE html>
   </div>
   {% if anomalias %}<div class="alert">⚠️ {{', '.join(anomalias[:3])}}{{'...' if anomalias|length > 3 else ''}}</div>{% endif %}
   {% if dias_12m >= limite_sunat %}
-  <div class="alert" style="background:#f8d7da;border-color:#dc3545;color:#842029">
-    🔴 <strong>ALERTA CRÍTICA:</strong> Has superado los {{limite_sunat}} días. Podrías perder tu domicilio fiscal en Perú.
-  </div>
+  <div class="alert" style="background:#f8d7da;border-color:#dc3545;color:#842029">🔴 <strong>ALERTA CRÍTICA:</strong> Has superado los {{limite_sunat}} días.</div>
   {% elif dias_12m >= 150 %}
-  <div class="alert" style="background:#fff3cd">
-    ⚠️ <strong>Atención:</strong> Te acercas al límite ({{dias_12m}}/{{limite_sunat}} días). Planifica con cuidado.
-  </div>
+  <div class="alert" style="background:#fff3cd">⚠️ <strong>Atención:</strong> Te acercas al límite ({{dias_12m}}/{{limite_sunat}} días).</div>
   {% endif %}
 </div>
 
 <div class="grid-2">
-  <div class="card status-{{c12}}">
-    <h3>📅 Últimos 12 meses</h3>
-    <div class="metric" style="font-size:1.6rem">{{dias_12m}} días</div>
-    <span class="badge badge-{{'green' if dias_12m<150 else 'orange' if dias_12m<183 else 'red'}}">{{e12}}</span>
-  </div>
-  <div class="card status-{{ca}}">
-    <h3>🗓️ Año {{anio_act}}</h3>
-    <div class="metric" style="font-size:1.6rem">{{dias_anio}} días</div>
-    <span class="badge badge-{{'green' if dias_anio<150 else 'orange' if dias_anio<183 else 'red'}}">{{ea}}</span>
-  </div>
+  <div class="card status-{{c12}}"><h3>📅 Últimos 12 meses</h3><div class="metric" style="font-size:1.6rem">{{dias_12m}} días</div><span class="badge badge-{{'green' if dias_12m<150 else 'orange' if dias_12m<183 else 'red'}}">{{e12}}</span></div>
+  <div class="card status-{{ca}}"><h3>🗓️ Año {{anio_act}}</h3><div class="metric" style="font-size:1.6rem">{{dias_anio}} días</div><span class="badge badge-{{'green' if dias_anio<150 else 'orange' if dias_anio<183 else 'red'}}">{{ea}}</span></div>
 </div>
 
 <div class="card">
-  <h2>📈 Días fuera por mes (histórico + proyecciones)</h2>
+  <h2>📈 Días fuera por mes</h2>
   <div class="estado-legend">
     <div class="estado-item"><span class="estado-dot" style="background:#3b82f6"></span> M: Migraciones</div>
     <div class="estado-item"><span class="estado-dot" style="background:#22c55e"></span> R: Registro</div>
     <div class="estado-item"><span class="estado-dot" style="background:#f59e0b"></span> P: Proyectado</div>
   </div>
   <div class="chart-wrapper"><canvas id="chart"></canvas></div>
-  <div class="chart-legend">
-    <span>🔵 Migraciones</span> • <span>🟢 Registro manual</span> • <span>🟡 Proyecciones</span>
-  </div>
 </div>
 
 <div class="card">
@@ -307,37 +288,25 @@ html_template = """<!DOCTYPE html>
       <strong class="badge badge-{{estado}}">{{estados_config[estado].label}}</strong>
       {% if ranking_data[estado] %}
         {% for r in ranking_data[estado] %}
-        <div class="ranking-item" style="padding:4px 0;border-bottom:none">
-          <img src="https://flagcdn.com/w40/{{r.iso}}.png" class="ranking-flag" alt="{{r.pais}}" onerror="this.style.display='none'">
-          <span style="font-size:0.8rem">{{r.pais|title}}</span>
-          <span style="font-size:0.75rem;background:#e9ecef;padding:2px 6px;border-radius:4px">{{r.dias}}d</span>
-        </div>
+        <div class="ranking-item"><img src="https://flagcdn.com/w40/{{r.iso}}.png" class="ranking-flag" alt="{{r.pais}}" onerror="this.style.display='none'"><span style="font-size:0.8rem">{{r.pais|title}}</span><span style="font-size:0.75rem;background:#e9ecef;padding:2px 6px;border-radius:4px">{{r.dias}}d</span></div>
         {% endfor %}
-      {% else %}
-        <p style="font-size:0.75rem;color:#6c757d;margin:4px 0">Sin datos</p>
-      {% endif %}
+      {% else %}<p style="font-size:0.75rem;color:#6c757d;margin:4px 0">Sin datos</p>{% endif %}
     </div>
     {% endfor %}
   </div>
 </div>
 
-<!-- FORMULARIO: AGREGAR/EDITAR PROYECCIONES (SOLO ESTADO P) -->
 <div class="card">
   <button id="btn-proj" class="btn" style="background:#f59e0b;color:#000">✈️ Gestionar Proyecciones (P)</button>
   <div id="form-proj" class="hidden" style="margin-top:12px">
-    <p style="font-size:0.8rem;color:#6c757d;margin-bottom:8px">
-      💡 Solo puedes editar proyecciones (estado P). Hasta 3 itinerarios.
-    </p>
-    <div id="projections-container">
-      <!-- Se generan 3 formularios idénticos -->
-    </div>
-    <button id="btn-add-projection" class="btn btn-outline" style="margin:8px 0">+ Agregar otro itinerario</button>
+    <p style="font-size:0.8rem;color:#6c757d;margin-bottom:8px">💡 Solo proyecciones (P). Máx. 3 itinerarios.</p>
+    <div id="projections-container"></div>
+    <button id="btn-add-projection" class="btn btn-outline" style="margin:8px 0">+ Agregar itinerario</button>
     <button id="btn-save-proj" class="btn" style="background:#22c55e">💾 Guardar proyecciones</button>
     <div id="res-proj" class="result-box hidden"></div>
   </div>
 </div>
 
-<!-- TABLA DE VIAJES CON FILTRO POR ESTADO -->
 <div class="card">
   <h2>📋 Historial de viajes</h2>
   <div style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap">
@@ -346,18 +315,7 @@ html_template = """<!DOCTYPE html>
     <button class="btn" style="padding:6px 12px;font-size:0.8rem;background:#22c55e" onclick="filtrarTabla('R')">R</button>
     <button class="btn" style="padding:6px 12px;font-size:0.8rem;background:#f59e0b;color:#000" onclick="filtrarTabla('P')">P</button>
   </div>
-  <div class="table-responsive">
-    <table id="tabla-viajes">
-      <thead>
-        <tr>
-          <th>Salida</th><th>Retorno</th><th>País</th><th>Días</th><th>Estado</th><th>Acciones</th>
-        </tr>
-      </thead>
-      <tbody id="tabla-body">
-        <!-- Se llena con JS -->
-      </tbody>
-    </table>
-  </div>
+  <div class="table-responsive"><table><thead><tr><th>Salida</th><th>Retorno</th><th>País</th><th>Días</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="tabla-body"></tbody></table></div>
 </div>
 
 <div class="footer">Cálculo según Art. 7° LIR. No sustituye asesoría tributaria.</div>
@@ -369,198 +327,95 @@ document.addEventListener('DOMContentLoaded', function() {
     const cfg = JSON.parse(document.getElementById('app-config').textContent);
     console.log('✅ Config OK | Viajes:', cfg.viajes.length, '| Chart:', cfg.chart_labels.length);
 
-    // Utilidades
     const parseFecha = s => { const p=s.trim().split('/'); return new Date(+p[2], +p[1]-1, +p[0]); };
     const diasEntre = (f1,f2) => Math.max(0, Math.floor((parseFecha(f2)-parseFecha(f1)-864e5)/864e5));
-    const formatoMes = ym => { const [y,m]=ym.split('-'); return ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][+m-1]+' '+y; };
     const toggle = id => document.getElementById(id).classList.toggle('hidden');
     const showRes = (id, html) => { const el=document.getElementById(id); el.innerHTML=html; el.classList.remove('hidden'); };
     const regex = /^\\d{1,2}\\/\\d{1,2}\\/\\d{4}$/;
-    const estadosCfg = cfg.estados_config;
 
-    // Toggle formulario de proyecciones
     document.getElementById('btn-proj').onclick = () => {
       toggle('form-proj');
-      if (!document.getElementById('form-proj').classList.contains('hidden')) {
-        renderProjectionForms();
-        renderTablaViajes('todos');
-      }
+      if (!document.getElementById('form-proj').classList.contains('hidden')) renderProjectionForms();
     };
 
-    // Renderizar formularios de proyección (hasta 3)
-    let projectionCount = 1;
+    let projCount = 1;
     function renderProjectionForms() {
-      const container = document.getElementById('projections-container');
-      container.innerHTML = '';
-      for (let i = 1; i <= Math.min(projectionCount, 3); i++) {
-        container.innerHTML += `
-          <div style="border:1px solid #dee2e6;border-radius:8px;padding:10px;margin-bottom:8px;background:#fff">
-            <div style="font-weight:600;margin-bottom:6px">Itinerario #${i}</div>
-            <div class="range-grid">
-              <div class="form-group"><label>Salida</label><input type="text" id="proj-s-${i}" placeholder="DD/MM/YYYY"></div>
-              <div class="form-group"><label>Retorno</label><input type="text" id="proj-r-${i}" placeholder="DD/MM/YYYY"></div>
-            </div>
-            <div class="form-group"><label>País</label><input type="text" id="proj-pais-${i}" placeholder="Ej: España"></div>
-            <button class="btn btn-outline" onclick="removeProjection(${i})" style="padding:6px 10px;font-size:0.8rem">🗑️ Eliminar</button>
-          </div>`;
+      const c = document.getElementById('projections-container'); c.innerHTML = '';
+      for (let i=1; i<=Math.min(projCount,3); i++) {
+        c.innerHTML += `<div style="border:1px solid #dee2e6;border-radius:8px;padding:10px;margin-bottom:8px;background:#fff">
+          <div style="font-weight:600;margin-bottom:6px">Itinerario #${i}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div class="form-group"><label>Salida</label><input type="text" id="proj-s-${i}" placeholder="DD/MM/YYYY"></div>
+            <div class="form-group"><label>Retorno</label><input type="text" id="proj-r-${i}" placeholder="DD/MM/YYYY"></div>
+          </div>
+          <div class="form-group"><label>País</label><input type="text" id="proj-pais-${i}" placeholder="Ej: España"></div>
+          <button class="btn btn-outline" onclick="if(projCount>1){projCount--;renderProjectionForms()}" style="padding:6px 10px;font-size:0.8rem">🗑️ Quitar</button>
+        </div>`;
       }
     }
-    window.removeProjection = function(idx) {
-      if (projectionCount > 1) { projectionCount--; renderProjectionForms(); }
-    };
-    document.getElementById('btn-add-projection').onclick = function() {
-      if (projectionCount < 3) { projectionCount++; renderProjectionForms(); }
-      else { alert('Máximo 3 proyecciones permitidas'); }
-    };
+    document.getElementById('btn-add-projection').onclick = () => { if(projCount<3){projCount++;renderProjectionForms()} else alert('Máx 3 proyecciones'); };
 
-    // Guardar proyecciones (solo estado P)
     document.getElementById('btn-save-proj').onclick = async function() {
-      const btn = this;
-      const res = 'res-proj';
-      btn.classList.add('loading'); btn.textContent = '⏳...';
-      
-      let successCount = 0;
-      for (let i = 1; i <= projectionCount; i++) {
-        const s = document.getElementById(`proj-s-${i}`)?.value;
-        const r = document.getElementById(`proj-r-${i}`)?.value;
-        const pais = document.getElementById(`proj-pais-${i}`)?.value;
-        if (!s || !r || !pais) continue;
-        if (!regex.test(s)||!regex.test(r)) { showRes(res, '❌ Usa formato DD/MM/YYYY'); btn.classList.remove('loading'); btn.textContent = '💾 Guardar proyecciones'; return; }
-        if (parseFecha(r) < parseFecha(s)) { showRes(res, '❌ Retorno debe ser posterior'); btn.classList.remove('loading'); btn.textContent = '💾 Guardar proyecciones'; return; }
-        
+      const btn=this, res='res-proj'; btn.classList.add('loading'); btn.textContent='⏳...';
+      let ok=0;
+      for(let i=1;i<=projCount;i++){
+        const s=document.getElementById(`proj-s-${i}`)?.value, r=document.getElementById(`proj-r-${i}`)?.value, p=document.getElementById(`proj-pais-${i}`)?.value;
+        if(!s||!r||!p) continue;
+        if(!regex.test(s)||!regex.test(r)) { showRes(res,'❌ Usa DD/MM/YYYY'); btn.classList.remove('loading'); btn.textContent='💾 Guardar proyecciones'; return; }
+        if(parseFecha(r)<parseFecha(s)) { showRes(res,'❌ Retorno > Salida'); btn.classList.remove('loading'); btn.textContent='💾 Guardar proyecciones'; return; }
         try {
-          // Guardar SALIDA proyectada
-          await fetch(cfg.app_url, { method: 'POST', mode: 'cors', headers: {'Content-Type':'text/plain'}, body: JSON.stringify({tipo:'SALIDA', fecha:s, pais:pais, estado:'P'}) });
-          // Guardar ENTRADA proyectada
-          await fetch(cfg.app_url, { method: 'POST', mode: 'cors', headers: {'Content-Type':'text/plain'}, body: JSON.stringify({tipo:'ENTRADA', fecha:r, pais:pais, estado:'P'}) });
-          successCount++;
-        } catch(e) { /* continuar con el siguiente */ }
+          await fetch(cfg.app_url, {method:'POST', headers:{'Content-Type':'text/plain'}, body:JSON.stringify({tipo:'SALIDA', fecha:s, pais:p, estado:'P'})});
+          await fetch(cfg.app_url, {method:'POST', headers:{'Content-Type':'text/plain'}, body:JSON.stringify({tipo:'ENTRADA', fecha:r, pais:p, estado:'P'})});
+          ok++;
+        } catch(e){}
       }
-      
-      if (successCount > 0) {
-        showRes(res, `✅ ${successCount} proyección(es) guardada(s). Refresca la página para ver actualizaciones.`);
-        // Resetear formulario
-        projectionCount = 1; renderProjectionForms();
-        document.getElementById('proj-s-1').value = ''; document.getElementById('proj-r-1').value = ''; document.getElementById('proj-pais-1').value = '';
-      } else {
-        showRes(res, '❌ No se pudieron guardar las proyecciones. Verifica la conexión.');
-      }
-      btn.classList.remove('loading'); btn.textContent = '💾 Guardar proyecciones';
+      showRes(res, ok>0?`✅ ${ok} proyección(es) guardada(s). Refresca la página.`:'❌ Error al guardar.');
+      btn.classList.remove('loading'); btn.textContent='💾 Guardar proyecciones';
+      if(ok>0){projCount=1; renderProjectionForms();}
     };
 
-    // Renderizar tabla de viajes con filtro
-    window.filtrarTabla = function(estadoFilter) {
-      renderTablaViajes(estadoFilter);
-    };
-    
-    function renderTablaViajes(filter) {
-      const tbody = document.getElementById('tabla-body');
-      tbody.innerHTML = '';
-      const viajesFiltrados = filter === 'todos' ? cfg.viajes : cfg.viajes.filter(v => v.estado === filter);
-      
-      if (viajesFiltrados.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#6c757d;padding:20px">Sin viajes para mostrar</td></tr>';
-        return;
-      }
-      
-      viajesFiltrados.slice().reverse().forEach((v, idx) => {
-        const acciones = v.estado === 'P' ? 
-          `<button class="btn btn-outline" style="padding:4px 8px;font-size:0.75rem" onclick="editarProyeccion('${v.salida_str}','${v.entrada_str}','${v.pais}')">✏️</button>` : 
-          `<span style="font-size:0.75rem;color:#6c757d">Solo lectura</span>`;
-        
-        tbody.innerHTML += `
-          <tr>
-            <td>${v.salida_str.split('-').reverse().join('/')}</td>
-            <td>${v.entrada_str.split('-').reverse().join('/')}</td>
-            <td>${v.pais}</td>
-            <td style="text-align:right">${v.dias}</td>
-            <td><span class="badge badge-${v.estado}">${v.estado}</span></td>
-            <td>${acciones}</td>
-          </tr>`;
+    window.filtrarTabla = filtro => {
+      const tb = document.getElementById('tabla-body'); tb.innerHTML='';
+      const datos = filtro==='todos' ? cfg.viajes : cfg.viajes.filter(v=>v.estado===filtro);
+      if(datos.length===0){ tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:#6c757d;padding:20px">Sin datos</td></tr>'; return; }
+      datos.slice().reverse().forEach(v => {
+        const act = v.estado==='P' ? `<button class="btn-edit" onclick="alert('Para editar: elimina la proyección en Sheets y vuelve a registrarla.')">✏️ Editar</button>` : `<span style="font-size:0.75rem;color:#6c757d">Solo lectura</span>`;
+        tb.innerHTML += `<tr><td>${v.salida_str.split('-').reverse().join('/')}</td><td>${v.entrada_str.split('-').reverse().join('/')}</td><td>${v.pais}</td><td style="text-align:right">${v.dias}</td><td><span class="badge badge-${v.estado}">${v.estado}</span></td><td>${act}</td></tr>`;
       });
-    }
-    
-    window.editarProyeccion = function(salida, entrada, pais) {
-      // Pre-llenar el primer formulario de proyección
-      document.getElementById('proj-s-1').value = salida.split('-').reverse().join('/');
-      document.getElementById('proj-r-1').value = entrada.split('-').reverse().join('/');
-      document.getElementById('proj-pais-1').value = pais;
-      toggle('form-proj');
-      alert('ℹ️ Para editar una proyección: elimina la existente y agrega la nueva con los datos corregidos.');
     };
+    filtrarTabla('todos');
 
-    // ✅ GRÁFICO APILADO MULTICOLOR - SINTAXIS CORREGIDA
-const ctx = document.getElementById('chart');
-if (!cfg.chart_labels || cfg.chart_labels.length === 0) {
-  ctx.parentElement.innerHTML = '<p style="text-align:center;color:#6c757d;padding:40px">📊 Sin datos para graficar en el rango seleccionado.</p>';
-} else {
-  console.log('📈 Renderizando gráfico | Labels:', cfg.chart_labels.length, '| M:', cfg.chart_M.slice(0,3), '| R:', cfg.chart_R.slice(0,3), '| P:', cfg.chart_P.slice(0,3));
-  
-  new Chart(ctx, {
-    type: 'bar',
-    data: {  // ✅ CLAVE 'data' OBLIGATORIA (esto faltaba)
-      labels: cfg.chart_labels,
-      datasets: [
-        { 
-          label: 'Migraciones', 
-          data: cfg.chart_M,  // ✅ CLAVE 'data' OBLIGATORIA DENTRO DE CADA DATASET
-          backgroundColor: '#3b82f6', 
-          stack: 'Stack 0' 
+    // ✅ GRÁFICO APILADO (SINTAXIS CORREGIDA)
+    const ctx = document.getElementById('chart');
+    if (!cfg.chart_labels || cfg.chart_labels.length === 0) {
+      ctx.parentElement.innerHTML = '<p style="text-align:center;color:#6c757d;padding:40px">📊 Sin datos para graficar.</p>';
+    } else {
+      new Chart(ctx, {
+        type: 'bar',
+         {
+          labels: cfg.chart_labels,
+          datasets: [
+            { label: 'Migraciones',  cfg.chart_M, backgroundColor: '#3b82f6', stack: 'Stack 0' },
+            { label: 'Registro',  cfg.chart_R, backgroundColor: '#22c55e', stack: 'Stack 0' },
+            { label: 'Proyectado',  cfg.chart_P, backgroundColor: '#f59e0b', stack: 'Stack 0' }
+          ]
         },
-        { 
-          label: 'Registro', 
-          data: cfg.chart_R, 
-          backgroundColor: '#22c55e', 
-          stack: 'Stack 0' 
-        },
-        { 
-          label: 'Proyectado', 
-          data: cfg.chart_P, 
-          backgroundColor: '#f59e0b', 
-          stack: 'Stack 0' 
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: { duration: 0 },
-      plugins: { 
-        legend: { display: false }, 
-        tooltip: { 
-          enabled: true, 
-          backgroundColor: 'rgba(0,0,0,0.85)', 
-          titleFont: { size: 11 }, 
-          bodyFont: { size: 10 }, 
-          padding: 6,
-          callbacks: {
-            label: function(context) {
-              const label = context.dataset.label || '';
-              const value = context.parsed.y || 0;
-              return `${label}: ${value} días`;
-            }
+        options: {
+          responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
+          plugins: { legend: { display: false }, tooltip: { enabled: true, backgroundColor: 'rgba(0,0,0,0.85)', titleFont: { size: 11 }, bodyFont: { size: 10 }, padding: 6 } },
+          scales: {
+            x: { stacked: true, ticks: { maxRotation: 45, autoSkip: true, maxTicksLimit: 12, font: { size: 9 } }, grid: { display: false } },
+            y: { stacked: true, beginAtZero: true, ticks: { stepSize: 10, font: { size: 9 } }, grid: { color: 'rgba(0,0,0,0.05)' } }
           }
         }
-      },
-      scales: {
-        x: { 
-          stacked: true,
-          ticks: { maxRotation: 45, minRotation: 45, autoSkip: true, maxTicksLimit: 12, font: { size: 9 } }, 
-          grid: { display: false }
-        },
-        y: { 
-          stacked: true,
-          beginAtZero: true, 
-          ticks: { stepSize: 10, font: { size: 9 } }, 
-          grid: { color: 'rgba(0,0,0,0.05)' },
-          title: { display: true, text: 'Días fuera', font: { size: 10 } }
-        }
-      }
+      });
+      console.log('✅ Gráfico renderizado');
     }
-  });
-  console.log('✅ Gráfico renderizado correctamente');
-}
-
+  } catch(err) { console.error('❌ Error JS:', err); }
+});
+</script>
+</body>
+</html>"""
 # =============================================================================
 # GENERAR ARCHIVO FINAL
 # =============================================================================
