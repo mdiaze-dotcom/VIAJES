@@ -489,67 +489,77 @@ document.addEventListener('DOMContentLoaded', function() {
       alert('ℹ️ Para editar una proyección: elimina la existente y agrega la nueva con los datos corregidos.');
     };
 
-    // ✅ GRÁFICO APILADO MULTICOLOR
-    const ctx = document.getElementById('chart');
-    if (!cfg.chart_labels || cfg.chart_labels.length === 0) {
-      ctx.parentElement.innerHTML = '<p style="text-align:center;color:#6c757d;padding:40px">Sin datos históricos para graficar.</p>';
-    } else {
-      new Chart(ctx, {
-        type: 'bar',
-         {
-          labels: cfg.chart_labels,
-          datasets: [
-            { label: 'Migraciones',  cfg.chart_M, backgroundColor: '#3b82f6', stack: 'Stack 0' },
-            { label: 'Registro',  cfg.chart_R, backgroundColor: '#22c55e', stack: 'Stack 0' },
-            { label: 'Proyectado',  cfg.chart_P, backgroundColor: '#f59e0b', stack: 'Stack 0' }
-          ]
+    // ✅ GRÁFICO APILADO MULTICOLOR - SINTAXIS CORREGIDA
+const ctx = document.getElementById('chart');
+if (!cfg.chart_labels || cfg.chart_labels.length === 0) {
+  ctx.parentElement.innerHTML = '<p style="text-align:center;color:#6c757d;padding:40px">📊 Sin datos para graficar en el rango seleccionado.</p>';
+} else {
+  console.log('📈 Renderizando gráfico | Labels:', cfg.chart_labels.length, '| M:', cfg.chart_M.slice(0,3), '| R:', cfg.chart_R.slice(0,3), '| P:', cfg.chart_P.slice(0,3));
+  
+  new Chart(ctx, {
+    type: 'bar',
+    data: {  // ✅ CLAVE 'data' OBLIGATORIA (esto faltaba)
+      labels: cfg.chart_labels,
+      datasets: [
+        { 
+          label: 'Migraciones', 
+          data: cfg.chart_M,  // ✅ CLAVE 'data' OBLIGATORIA DENTRO DE CADA DATASET
+          backgroundColor: '#3b82f6', 
+          stack: 'Stack 0' 
         },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          animation: { duration: 0 },
-          plugins: { 
-            legend: { display: false }, 
-            tooltip: { 
-              enabled: true, 
-              backgroundColor: 'rgba(0,0,0,0.85)', 
-              titleFont: { size: 11 }, 
-              bodyFont: { size: 10 }, 
-              padding: 6,
-              callbacks: {
-                label: function(context) {
-                  const label = context.dataset.label || '';
-                  const value = context.parsed.y || 0;
-                  return `${label}: ${value} días`;
-                }
-              }
-            }
-          },
-          scales: {
-            x: { 
-              stacked: true,
-              ticks: { maxRotation: 45, minRotation: 45, autoSkip: true, maxTicksLimit: 12, font: { size: 9 } }, 
-              grid: { display: false }
-            },
-            y: { 
-              stacked: true,
-              beginAtZero: true, 
-              ticks: { stepSize: 10, font: { size: 9 } }, 
-              grid: { color: 'rgba(0,0,0,0.05)' },
-              title: { display: true, text: 'Días fuera', font: { size: 10 } }
+        { 
+          label: 'Registro', 
+          data: cfg.chart_R, 
+          backgroundColor: '#22c55e', 
+          stack: 'Stack 0' 
+        },
+        { 
+          label: 'Proyectado', 
+          data: cfg.chart_P, 
+          backgroundColor: '#f59e0b', 
+          stack: 'Stack 0' 
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 0 },
+      plugins: { 
+        legend: { display: false }, 
+        tooltip: { 
+          enabled: true, 
+          backgroundColor: 'rgba(0,0,0,0.85)', 
+          titleFont: { size: 11 }, 
+          bodyFont: { size: 10 }, 
+          padding: 6,
+          callbacks: {
+            label: function(context) {
+              const label = context.dataset.label || '';
+              const value = context.parsed.y || 0;
+              return `${label}: ${value} días`;
             }
           }
         }
-      });
-      console.log('📈 Gráfico apilado renderizado');
+      },
+      scales: {
+        x: { 
+          stacked: true,
+          ticks: { maxRotation: 45, minRotation: 45, autoSkip: true, maxTicksLimit: 12, font: { size: 9 } }, 
+          grid: { display: false }
+        },
+        y: { 
+          stacked: true,
+          beginAtZero: true, 
+          ticks: { stepSize: 10, font: { size: 9 } }, 
+          grid: { color: 'rgba(0,0,0,0.05)' },
+          title: { display: true, text: 'Días fuera', font: { size: 10 } }
+        }
+      }
     }
-  } catch(err) {
-    console.error('❌ Error JS:', err);
-  }
-});
-</script>
-</body>
-</html>"""
+  });
+  console.log('✅ Gráfico renderizado correctamente');
+}
 
 # =============================================================================
 # GENERAR ARCHIVO FINAL
