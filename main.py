@@ -191,48 +191,28 @@ html_template = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Control SUNAT - Acceso Seguro</title>
+<title>Control SUNAT</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
 <style>
-  /* RESET Y BASE */
+  /* RESET & BASE */
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
   body{font-family:system-ui,-apple-system,sans-serif;overflow-x:hidden;background:#f8f9fa}
   
-  /* 🔐 PANTALLA DE LOGIN */
-  #login-screen {
-    position: fixed; top: 0; left: 0; width: 100%; height: 100vh;
-    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-    z-index: 9999; display: flex; align-items: center; justify-content: center;
-  }
-  #bg-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; }
-  
-  .login-box {
-    position: relative; z-index: 10000;
-    background: rgba(255,255,255,0.95); backdrop-filter: blur(10px);
-    padding: 40px 30px; border-radius: 16px;
-    width: 90%; max-width: 340px; text-align: center;
-    box-shadow: 0 25px 50px rgba(0,0,0,0.5);
-    border: 1px solid rgba(255,255,255,0.1);
-  }
-  .login-box h2 { margin: 0 0 25px; color: #0f172a; font-size: 1.5rem; font-weight: 800; }
-  .login-box input {
-    width: 100%; padding: 14px 15px; margin: 8px 0 16px;
-    border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; transition: 0.3s;
-  }
-  .login-box input:focus { border-color: #3b82f6; outline: none; box-shadow: 0 0 0 3px rgba(59,130,246,0.2); }
-  .login-box button {
-    width: 100%; padding: 14px; background: #3b82f6; color: #fff;
-    border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: 0.3s;
-  }
-  .login-box button:hover { background: #2563eb; transform: translateY(-2px); }
-  .error-msg { color: #ef4444; font-size: 0.9rem; margin-top: 15px; display: none; font-weight: 500; }
+  /* 🔐 LOGIN SCREEN */
+  #login-screen{position:fixed;top:0;left:0;width:100%;height:100vh;background:linear-gradient(135deg,#0f172a,#1e293b);z-index:9999;display:flex;align-items:center;justify-content:center}
+  #bg-canvas{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1}
+  .login-box{position:relative;z-index:10000;background:rgba(255,255,255,0.95);backdrop-filter:blur(10px);padding:40px 30px;border-radius:16px;width:90%;max-width:340px;text-align:center;box-shadow:0 25px 50px rgba(0,0,0,0.5)}
+  .login-box h2{margin:0 0 25px;color:#0f172a;font-size:1.5rem;font-weight:800}
+  .login-box input{width:100%;padding:14px;margin:8px 0 16px;border:2px solid #e2e8f0;border-radius:8px;font-size:1rem;transition:0.3s}
+  .login-box input:focus{border-color:#3b82f6;outline:none;box-shadow:0 0 0 3px rgba(59,130,246,0.2)}
+  .login-box button{width:100%;padding:14px;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;transition:0.3s}
+  .login-box button:hover{background:#2563eb;transform:translateY(-2px)}
+  .error-msg{color:#ef4444;font-size:0.9rem;margin-top:15px;display:none;font-weight:500}
 
-  /* 📱 APLICACIÓN (Oculta inicialmente) */
-  #main-app { display: none; padding: 12px; min-height: 100vh; background: #f8f9fa; }
-  
-  /* ESTILOS DASHBOARD */
+  /* 📱 MAIN APP */
+  #main-app{display:none;padding:12px;min-height:100vh;background:#f8f9fa}
   .card{background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,0.08)}
-  .status-green{border-left:5px solid #198754;padding-left:12px}.status-orange{border-left:5px solid #fd7e14;padding-left:12px}.status-red{border-left:5px solid #dc3545;padding-left:12px}
+  .status-green{border-left:5px solid #198754}.status-orange{border-left:5px solid #fd7e14}.status-red{border-left:5px solid #dc3545}
   h1,h2,h3{margin:0 0 8px;font-weight:600}h1{font-size:1.25rem}h2{font-size:1.1rem}h3{font-size:1rem}
   .metric{font-size:1.8rem;font-weight:700;margin:4px 0 8px}
   .badge{display:inline-block;padding:4px 10px;border-radius:20px;font-size:0.8rem;font-weight:500;margin-right:6px}
@@ -243,7 +223,7 @@ html_template = """<!DOCTYPE html>
   .chart-wrap{position:relative;width:100%;height:240px;margin-top:8px;min-height:240px;background:#fafafa;border-radius:8px}
   canvas{display:block;width:100%!important;height:100%!important}
   .btn{display:inline-flex;align-items:center;gap:6px;background:#0d6efd;color:#fff;border:none;border-radius:8px;padding:10px 14px;font-size:0.9rem;cursor:pointer;margin:4px 2px}
-  .btn:hover{opacity:0.95}.btn:active{transform:scale(0.98)}.btn-outline{background:transparent;border:1px solid #0d6efd;color:#0d6efd}
+  .btn:hover{opacity:0.95}.btn-outline{background:transparent;border:1px solid #0d6efd;color:#0d6efd}
   .form-group{margin:10px 0}.form-group label{display:block;font-size:0.85rem;margin-bottom:4px;color:#495057}
   .form-group input,.form-group select{width:100%;padding:8px;border:1px solid #ced4da;border-radius:6px;font-size:0.9rem}
   .result-box{background:#f8f9fa;border-radius:8px;padding:10px;margin-top:10px;font-size:0.9rem}
@@ -266,7 +246,7 @@ html_template = """<!DOCTYPE html>
     <h2>🔐 Acceso Seguro</h2>
     <input type="text" id="user" placeholder="Usuario" value="admin">
     <input type="password" id="pass" placeholder="Contraseña">
-    <button onclick="intentarLogin()">INGRESAR</button>
+    <button id="btn-login" onclick="intentarLogin()">INGRESAR</button>
     <p id="error-msg" class="error-msg">❌ Usuario o contraseña incorrectos</p>
   </div>
 </div>
@@ -310,19 +290,20 @@ html_template = """<!DOCTYPE html>
   <div class="footer">Cálculo Art. 7° LIR.</div>
 </div>
 
-<!-- DATOS JSON (Inyectados por Python) -->
-<script id="app-config" type="application/json">{{ config_str }}</script>
+<!-- ✅ DATOS INYECTADOS (CORRECCIÓN CRÍTICA: | safe) -->
+<script id="app-config" type="application/json">{{ config_str | safe }}</script>
 
 <script>
 // ==========================================
-// 🎬 ANIMACIÓN VÉRTICES (Ejecución inmediata)
+// 1. ANIMACIÓN VÉRTICES (AISLADA)
 // ==========================================
 (function() {
   const canvas = document.getElementById('bg-canvas');
-  if (!canvas) return;
+  if (!canvas) { console.warn('Canvas no encontrado'); return; }
   const ctx = canvas.getContext('2d');
   let particles = [];
   const count = 50;
+
   function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
   window.addEventListener('resize', resize); resize();
 
@@ -345,47 +326,58 @@ html_template = """<!DOCTYPE html>
     requestAnimationFrame(loop);
   }
   loop();
+  console.log('✅ Animación iniciada');
 })();
 
 // ==========================================
-// 🔐 LOGIN LÓGICA
+// 2. LOGIN
 // ==========================================
 function intentarLogin() {
   const u = document.getElementById('user').value;
   const p = document.getElementById('pass').value;
+  console.log('Intentando login...');
+  
   if (u === 'admin' && p === 'admin') {
-    document.getElementById('login-screen').style.display = 'none'; // Oculta Login
-    document.getElementById('main-app').style.display = 'block';    // Muestra App
-    iniciarApp(); // Inicia Gráficos
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('main-app').style.display = 'block';
+    console.log('✅ Login exitoso. Iniciando App...');
+    iniciarApp(); 
   } else {
-    const e = document.getElementById('error-msg'); e.style.display = 'block'; setTimeout(()=>e.style.display='none', 2000);
+    document.getElementById('error-msg').style.display = 'block';
+    console.warn('❌ Login fallido');
+    setTimeout(() => document.getElementById('error-msg').style.display = 'none', 2000);
   }
 }
 document.getElementById('pass').addEventListener('keypress', e => { if(e.key==='Enter') intentarLogin(); });
 
 // ==========================================
-// ⚙️ APP
+// 3. APP LOGIC
 // ==========================================
 function iniciarApp() {
   try {
+    console.log('Cargando configuración...');
+    // Leer JSON inyectado
     const raw = document.getElementById('app-config')?.textContent;
-    if (!raw) throw new Error("Falta config JSON");
-    const C = JSON.parse(raw);
-    console.log('✅ App Cargada | Meses:', C.lbl.length);
+    if (!raw) throw new Error("Datos no encontrados en #app-config");
+    
+    const C = JSON.parse(raw); // Esto fallaba antes si no usabas | safe
+    console.log('✅ Datos cargados | Meses:', C.lbl.length);
 
     const parseFecha = s => { const p=s?.trim().split('/')||[]; return new Date(+p[2],+p[1]-1,+p[0]); };
     const regex = /^\\d{1,2}\\/\\d{1,2}\\/\\d{4}$/;
 
-    // 1. Tabla
+    // TABLA
     window.filtro = f => {
       const t = document.getElementById('tb'); if(!t) return; t.innerHTML='';
       const d = f==='todos'?C.viajes:C.viajes.filter(v=>v.estado===f);
       if(!d.length){t.innerHTML='<tr><td colspan="5" style="padding:20px;text-align:center;color:#6c757d">Sin datos</td></tr>';return;}
-      d.slice().reverse().forEach(v => { t.innerHTML += `<tr><td>${v.salida_str.split('-').reverse().join('/')}</td><td>${v.entrada_str.split('-').reverse().join('/')}</td><td>${v.pais}</td><td style="text-align:right">${v.dias}</td><td><span class="badge badge-${v.estado}">${v.estado}</span></td></tr>`; });
+      d.slice().reverse().forEach(v => { 
+        t.innerHTML += `<tr><td>${v.salida_str.split('-').reverse().join('/')}</td><td>${v.entrada_str.split('-').reverse().join('/')}</td><td>${v.pais}</td><td style="text-align:right">${v.dias}</td><td><span class="badge badge-${v.estado}">${v.estado}</span></td></tr>`; 
+      });
     };
     window.filtro('todos');
 
-    // 2. Gráfico
+    // GRÁFICO
     setTimeout(() => {
       const ctx = document.getElementById('chart');
       if (ctx && C.lbl?.length) {
@@ -394,10 +386,14 @@ function iniciarApp() {
            { labels: C.lbl, datasets: [{label:'M', C.vM, borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,0.1)', fill:true, tension:0.3},{label:'R', C.vR, borderColor:'#22c55e', backgroundColor:'rgba(34,197,94,0.1)', fill:true, tension:0.3},{label:'P', C.vP, borderColor:'#f59e0b', backgroundColor:'rgba(245,158,11,0.1)', fill:true, tension:0.3}] },
           options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{ticks:{maxRotation:45,autoSkip:true,maxTicksLimit:10},grid:{display:false}},y:{beginAtZero:true,grid:{color:'rgba(0,0,0,0.05)'}}} }
         });
+        console.log('📈 Gráfico renderizado');
       }
     }, 100);
 
-  } catch(err) { console.error('❌ Error Crítico:', err); alert('Error: ' + err.message); }
+  } catch(err) {
+    console.error('❌ Error crítico al iniciar:', err);
+    alert('Error al cargar la app. Revisa la consola (F12) para detalles.');
+  }
 }
 </script>
 </body>
@@ -407,21 +403,24 @@ function iniciarApp() {
 # RENDERIZADO FINAL (CORREGIDO: Pasa variables explícitas a Jinja2)
 # =============================================================================
 # =============================================================================
-# 📊 PREPARACIÓN FINAL
+# 📊 PREPARACIÓN FINAL Y GENERACIÓN
 # =============================================================================
 grafica = grafica_mensual(viajes_df)
 meses_es = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
 lbl, vM, vR, vP = [], [], [], []
 for k in sorted(grafica.keys()):
-    y, m = k.split("-"); lbl.append(f"{meses_es[int(m)-1]} {y}")
+    y, m = k.split("-")
+    lbl.append(f"{meses_es[int(m)-1]} {y}")
     vM.append(grafica[k]["M"]); vR.append(grafica[k]["R"]); vP.append(grafica[k]["P"])
 
+# Crear JSON seguro
 config_str = json.dumps({
     "app_url": APPS_SCRIPT_URL, "dias_12m": t12m, "dias_por_estado_12m": d12m,
     "dias_anio": tanio, "dias_por_estado_anio": danio, "anomalias": anomalias,
     "ranking": ranking, "viajes": viajes_js, "lbl": lbl, "vM": vM, "vR": vR, "vP": vP, "limite": LIMITE_SUNAT
 })
 
+# Renderizar con config_str como variable explícita
 html_final = Template(html_template).render(
     c12=c12, e12=e12, m12=m12, limite=LIMITE_SUNAT, dias_12m=t12m, dias_por_estado_12m=d12m,
     anomalias=anomalias, ca=ca, ea=ea, ma=ma, anio_act=hoy.year, dias_anio=tanio,
