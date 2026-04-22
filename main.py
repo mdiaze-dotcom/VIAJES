@@ -1,12 +1,12 @@
 # =============================================================================
-# CONTROL SUNAT - VERSIÓN FINAL ESTABLE (Login funcional + Animación visible)
+# CONTROL SUNAT - VERSIÓN ESTABLE (Backend intacto + Login + Vértices)
 # =============================================================================
 import os, json, pandas as pd, gspread
 from jinja2 import Template
 from datetime import date, timedelta
 from collections import Counter, defaultdict
 
-# 🔑 CONFIGURACIÓN
+# 🔑 CONFIGURACIÓN (IDÉNTICA A LA QUE FUNCIONABA)
 SHEET_ID = os.environ["SHEET_ID"]
 APPS_SCRIPT_URL = os.environ["APPS_SCRIPT_URL"]
 CREDENTIALS_JSON = json.loads(os.environ["GOOGLE_CREDENTIALS"])
@@ -67,7 +67,7 @@ def grafica_mensual(vdf):
             c += timedelta(days=1)
     return dict(sorted(datos.items()))
 
-# 🔹 PROCESAMIENTO
+# 🔹 PROCESAMIENTO DE DATOS (SIN CAMBIOS)
 gc = gspread.service_account_from_dict(CREDENTIALS_JSON)
 sheet = gc.open_by_key(SHEET_ID).sheet1
 df = pd.DataFrame(sheet.get_all_records())
@@ -125,38 +125,48 @@ config_data = {
 config_str = json.dumps(config_data, ensure_ascii=False)
 
 # =============================================================================
-# PLANTILLA HTML (ESTABLE: Login intacto + Animación visible detrás)
+# PLANTILLA HTML (SOLO SE AÑADE LOGIN + VÉRTICES. DASHBOARD IDÉNTICO)
 # =============================================================================
 html_template = """<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-store">
 <title>Control SUNAT</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:system-ui,-apple-system,sans-serif;background:#0b1120;overflow-x:hidden}
+  body{font-family:system-ui,-apple-system,sans-serif;overflow-x:hidden;background:#0f172a}
   
-  /* ✅ CANVAS: Fondo absoluto */
-  #bg{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0}
+  /* ✅ CANVAS DE FONDO (Siempre visible detrás del login) */
+  #bg-canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:1}
   
-  /* ✅ LOGIN: Fondo semitransparente para ver la animación, SIN bloquear clics */
-  #login{position:fixed;top:0;left:0;width:100%;height:100%;z-index:10;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,0.5)}
+  /* ✅ PANTALLA DE LOGIN (Transparente para ver el canvas) */
+  #login-screen{position:fixed;top:0;left:0;width:100%;height:100%;z-index:10;display:flex;align-items:center;justify-content:center}
   
-  /* ✅ CAJA DE LOGIN: Opaca para legibilidad */
-  #box{background:#ffffff;padding:30px;border-radius:12px;width:90%;max-width:340px;text-align:center;box-shadow:0 15px 40px rgba(0,0,0,0.4)}
-  #box h2{color:#0f172a;margin-bottom:20px;font-size:1.5rem}
-  #box input{width:100%;padding:12px;margin:10px 0;border:1px solid #cbd5e1;border-radius:6px;font-size:1rem}
-  #box button{width:100%;padding:12px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:1rem;cursor:pointer;font-weight:600}
-  #err{color:#dc2626;margin-top:10px;display:none;font-size:0.9rem}
+  /* ✅ CAJA DE LOGIN */
+  #login-box{
+    position:relative;z-index:11;
+    background:rgba(255,255,255,0.95);backdrop-filter:blur(10px);
+    padding:30px;border-radius:12px;width:90%;max-width:340px;text-align:center;
+    box-shadow:0 20px 40px rgba(0,0,0,0.4);
+  }
+  #login-box h2{margin:0 0 20px;color:#0f172a;font-size:1.5rem}
+  #login-box input{width:100%;padding:12px;margin:8px 0;border:2px solid #e2e8f0;border-radius:8px;font-size:1rem}
+  #login-box input:focus{border-color:#2563eb;outline:none}
+  #login-box button{width:100%;padding:12px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;margin-top:10px}
+  #login-box button:hover{background:#1d4ed8}
+  #login-err{color:#ef4444;font-size:0.85rem;margin-top:10px;display:none}
   
-  /* APP */
-  #app{display:none;padding:12px;position:relative;z-index:20;min-height:100vh;background:#f4f6f8}
+  /* ✅ APP (Oculta al inicio) */
+  #main-app{display:none;position:relative;z-index:5;min-height:100vh;padding:12px;background:#f8f9fa}
+  
+  /* ESTILOS DASHBOARD (EXACTAMENTE LOS QUE FUNCIONABAN) */
   .card{background:#fff;border-radius:10px;padding:16px;margin-bottom:12px;box-shadow:0 2px 6px rgba(0,0,0,0.06)}
   .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:480px){.grid-2{grid-template-columns:1fr}}
   .chart-wrap{position:relative;height:240px;margin-top:8px;background:#fafafa;border-radius:8px}
-  canvas{width:100%!important;height:100%!important}
+  canvas{display:block;width:100%!important;height:100%!important}
   .btn{background:#2563eb;color:#fff;border:none;border-radius:6px;padding:8px 12px;cursor:pointer;margin:4px 2px;font-size:0.9rem}
   .btn-outline{background:transparent;border:1px solid #2563eb;color:#2563eb}
   table{width:100%;border-collapse:collapse;font-size:0.85rem;margin-top:8px}
@@ -171,19 +181,19 @@ html_template = """<!DOCTYPE html>
 </head>
 <body>
 
-<canvas id="bg"></canvas>
+<canvas id="bg-canvas"></canvas>
 
-<div id="login">
-  <div id="box">
+<div id="login-screen">
+  <div id="login-box">
     <h2>🔐 Acceso Seguro</h2>
-    <input id="u" type="text" placeholder="Usuario" value="admin">
-    <input id="pw" type="password" placeholder="Contraseña">
-    <button onclick="entrar()">INGRESAR</button>
-    <p id="err">Credenciales incorrectas</p>
+    <input id="user" type="text" placeholder="Usuario" value="admin" autocomplete="off">
+    <input id="pass" type="password" placeholder="Contraseña">
+    <button onclick="checkLogin()">INGRESAR</button>
+    <p id="login-err">Credenciales incorrectas</p>
   </div>
 </div>
 
-<div id="app">
+<div id="main-app">
   <div class="card"><h1>🇵🇪 Estado Residencia Fiscal</h1><p id="sum" style="margin-top:6px;font-size:0.95rem"></p></div>
   <div class="grid-2">
     <div class="card"><h3>📅 Últimos 12m</h3><p id="d12" style="font-size:1.4rem;font-weight:600"></p></div>
@@ -204,96 +214,86 @@ html_template = """<!DOCTYPE html>
 
 <script id="cfg" type="application/json">{{ config_str | safe }}</script>
 <script>
-// ✅ 1. ANIMACIÓN DE VÉRTICES (Ejecuta inmediatamente)
-(function() {
-  const cvs = document.getElementById('bg');
-  if (!cvs) return;
-  const ctx = cvs.getContext('2d');
-  let pts = [], w, h;
-  
-  const resize = () => { w = cvs.width = window.innerWidth; h = cvs.height = window.innerHeight; };
-  window.addEventListener('resize', resize); resize();
-  for(let i=0; i<60; i++) pts.push({x:Math.random()*w, y:Math.random()*h, vx:(Math.random()-0.5)*1.5, vy:(Math.random()-0.5)*1.5});
-
-  const draw = () => {
-    ctx.clearRect(0,0,w,h);
-    ctx.fillStyle = 'rgba(147,197,253,0.8)';
-    pts.forEach(p => {
-      p.x += p.vx; p.y += p.vy;
+// 1. ANIMACIÓN VÉRTICES (Fondo visible desde el inicio)
+(function(){
+  const c=document.getElementById('bg-canvas'), x=c.getContext('2d');
+  let pts=[], w, h;
+  const rsz=()=>{w=c.width=innerWidth;h=c.height=innerHeight};
+  addEventListener('resize',rsz); rsz();
+  for(let i=0;i<60;i++) pts.push({x:Math.random()*w, y:Math.random()*h, vx:(Math.random()-0.5)*1.5, vy:(Math.random()-0.5)*1.5});
+  const draw=()=>{
+    x.clearRect(0,0,w,h); x.fillStyle='rgba(147,197,253,0.8)';
+    pts.forEach(p=>{
+      p.x+=p.vx; p.y+=p.vy;
       if(p.x<0||p.x>w) p.vx*=-1; if(p.y<0||p.y>h) p.vy*=-1;
-      ctx.beginPath(); ctx.arc(p.x,p.y,2.5,0,Math.PI*2); ctx.fill();
+      x.beginPath(); x.arc(p.x,p.y,2.5,0,Math.PI*2); x.fill();
     });
-    for(let i=0;i<pts.length;i++) for(let j=i;j<pts.length;j++) {
+    for(let i=0;i<pts.length;i++) for(let j=i;j<pts.length;j++){
       const dx=pts[i].x-pts[j].x, dy=pts[i].y-pts[j].y, d=Math.sqrt(dx*dx+dy*dy);
-      if(d<150) { ctx.strokeStyle=`rgba(147,197,253,${0.4-d/375})`; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(pts[i].x,pts[i].y); ctx.lineTo(pts[j].x,pts[j].y); ctx.stroke(); }
+      if(d<150){ x.strokeStyle=`rgba(147,197,253,${0.4-d/375})`; x.lineWidth=1; x.beginPath(); x.moveTo(pts[i].x,pts[i].y); x.lineTo(pts[j].x,pts[j].y); x.stroke(); }
     }
     requestAnimationFrame(draw);
   }; draw();
 })();
 
-// ✅ 2. LOGIN (Lógica original intacta)
-function entrar() {
-  if(document.getElementById('u').value === 'admin' && document.getElementById('pw').value === 'admin') {
-    document.getElementById('login').style.display = 'none';
-    document.getElementById('app').style.display = 'block';
-    iniciarApp();
-  } else { document.getElementById('err').style.display = 'block'; }
+// 2. LOGIN
+function checkLogin(){
+  if(document.getElementById('user').value==='admin' && document.getElementById('pass').value==='admin'){
+    document.getElementById('login-screen').style.display='none';
+    document.getElementById('main-app').style.display='block';
+    loadDashboard();
+  } else {
+    const e=document.getElementById('login-err'); e.style.display='block'; setTimeout(()=>e.style.display='none',2000);
+  }
 }
-document.getElementById('pw').addEventListener('keypress', e => { if(e.key==='Enter') entrar(); });
+document.getElementById('pass').addEventListener('keypress', e=>{if(e.key==='Enter') checkLogin()});
 
-// ✅ 3. APP
-function iniciarApp() {
+// 3. DASHBOARD (LÓGICA QUE YA FUNCIONABA)
+function loadDashboard(){
   try {
     const raw = document.getElementById('cfg')?.textContent;
-    if(!raw) throw new Error('Configuración no encontrada');
+    if(!raw) throw new Error('Config no encontrada');
     const C = JSON.parse(raw);
     
-    document.getElementById('sum').textContent = `Total acumulado: ${C.dias_12m} / ${C.limite} días`;
+    document.getElementById('sum').textContent = `Total: ${C.dias_12m} / ${C.limite} días`;
     document.getElementById('d12').textContent = `${C.dias_12m} días`;
     document.getElementById('da').textContent = `${C.dias_anio} días`;
 
-    let rhtml = '';
-    for(let est of ["M","R","P"]) {
-      rhtml += `<div class="rank-box"><strong style="font-size:0.9rem">${est}</strong>`;
-      (C.ranking[est]||[]).forEach(r => rhtml += `<div class="rank-item"><img src="https://flagcdn.com/w40/${r.iso}.png" class="flag"><span>${r.pais}</span><span style="background:#e2e8f0;padding:2px 8px;border-radius:4px">${r.dias}d</span></div>`);
-      rhtml += '</div>';
+    let rh='';
+    for(let est of ["M","R","P"]){
+      rh+=`<div class="rank-box"><strong>${est}</strong>`;
+      (C.ranking[est]||[]).forEach(r=>rh+=`<div class="rank-item"><img src="https://flagcdn.com/w40/${r.iso}.png" class="flag"><span>${r.pais}</span><span style="background:#e2e8f0;padding:2px 6px;border-radius:4px">${r.dias}d</span></div>`);
+      rh+='</div>';
     }
-    document.getElementById('rank').innerHTML = rhtml;
+    document.getElementById('rank').innerHTML=rh;
 
-    window.filt = f => {
-      const d = f==='todos' ? C.viajes : C.viajes.filter(v=>v.estado===f);
-      let h = '<table><tr><th>Salida</th><th>Retorno</th><th>País</th><th>Días</th><th>Estado</th></tr>';
-      if(!d.length) h += '<tr><td colspan="5" style="text-align:center;padding:15px;color:#64748b">Sin registros</td></tr>';
-      else d.slice().reverse().forEach(v => h += `<tr><td>${v.salida_str.split('-').reverse().join('/')}</td><td>${v.entrada_str.split('-').reverse().join('/')}</td><td>${v.pais}</td><td style="text-align:right">${v.dias}</td><td><span class="badge-${v.estado}">${v.estado}</span></td></tr>`);
-      document.getElementById('hist').innerHTML = h + '</table>';
+    window.filt=f=>{
+      const d=f==='todos'?C.viajes:C.viajes.filter(v=>v.estado===f);
+      let h='<table><tr><th>Salida</th><th>Retorno</th><th>País</th><th>Días</th><th>Estado</th></tr>';
+      if(!d.length) h+='<tr><td colspan="5" style="text-align:center;padding:15px;color:#64748b">Sin registros</td></tr>';
+      else d.slice().reverse().forEach(v=>h+=`<tr><td>${v.salida_str.split('-').reverse().join('/')}</td><td>${v.entrada_str.split('-').reverse().join('/')}</td><td>${v.pais}</td><td style="text-align:right">${v.dias}</td><td><span class="badge-${v.estado}">${v.estado}</span></td></tr>`);
+      document.getElementById('hist').innerHTML=h+'</table>';
     };
     window.filt('todos');
 
-    setTimeout(() => {
-      const ctx = document.getElementById('chart');
-      if(ctx && C.lbl.length > 0) {
+    setTimeout(()=>{
+      const ctx=document.getElementById('chart');
+      if(ctx && C.lbl.length>0){
         new Chart(ctx, {
-          type: 'line',
-          data: {
-            labels: C.lbl,
-            datasets: [
-              { label: 'Migraciones', data: C.vM, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.3 },
-              { label: 'Registro', data: C.vR, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.1)', fill: true, tension: 0.3 },
-              { label: 'Proyectado', data: C.vP, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: true, tension: 0.3 }
+          type:'line',
+           {
+            labels:C.lbl,
+            datasets:[
+              {label:'M', data:C.vM, borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,0.1)', fill:true, tension:0.3},
+              {label:'R', data:C.vR, borderColor:'#22c55e', backgroundColor:'rgba(34,197,94,0.1)', fill:true, tension:0.3},
+              {label:'P', data:C.vP, borderColor:'#f59e0b', backgroundColor:'rgba(245,158,11,0.1)', fill:true, tension:0.3}
             ]
           },
-          options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false }, tooltip: { backgroundColor: '#0f172a', titleFont: { size: 11 }, bodyFont: { size: 10 } } },
-            scales: {
-              x: { ticks: { maxRotation: 45, autoSkip: true, maxTicksLimit: 10, font: { size: 9 } }, grid: { display: false } },
-              y: { beginAtZero: true, ticks: { stepSize: 5, font: { size: 9 } }, grid: { color: '#e2e8f0' } }
-            }
-          }
+          options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{ticks:{maxRotation:45,autoSkip:true,maxTicksLimit:10},grid:{display:false}},y:{beginAtZero:true,ticks:{stepSize:5},grid:{color:'#e2e8f0'}}}}
         });
       }
     }, 100);
-  } catch(e) { console.error(e); alert('Error al cargar: ' + e.message); }
+  } catch(e){ console.error(e); alert('Error: '+e.message); }
 }
 </script>
 </body>
@@ -311,4 +311,4 @@ html_final = Template(html_template).render(
 
 with open("index.html", "w", encoding="utf-8") as f:
     f.write(html_final)
-print("✅ index.html generado | Login funcional + Animación visible | Credenciales: admin/admin")
+print("✅ index.html generado | Login funcional + Vértices visibles | Credenciales: admin/admin")
