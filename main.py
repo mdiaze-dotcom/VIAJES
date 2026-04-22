@@ -322,7 +322,6 @@ html_template = """<!DOCTYPE html>
     return result
 
 def calcular_grafica_mensual(vdf):
-    """Retorna desglose mensual por estado M/R/P usando regla SUNAT"""
     datos = defaultdict(lambda: {"M": 0, "R": 0, "P": 0})
     if vdf.empty: return datos
     
