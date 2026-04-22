@@ -1,5 +1,5 @@
 # =============================================================================
-# CONTROL SUNAT - VERSIÓN FINAL ESTABLE
+# CONTROL SUNAT - VERSIÓN FINAL VALIDADA
 # =============================================================================
 import os, json, pandas as pd, gspread
 from jinja2 import Template
@@ -104,7 +104,7 @@ for est in ["M","R","P"]:
     for _, r in fil.iterrows(): dias_p[r["pais"]] += int(r["dias"])
     ranking[est] = [{"pais":p,"dias":d,"iso":PAIS_ISO.get(p.lower().strip(),"xx")} for p,d in sorted(dias_p.items(), key=lambda x: x[1], reverse=True)[:5]]
 
-# 🔑 SERIALIZACIÓN SEGURA
+# 🔑 SERIALIZACIÓN SEGURA (100% compatible con JSON)
 viajes_js = []
 if not viajes_df.empty:
     for _, r in viajes_df.iterrows():
@@ -122,10 +122,10 @@ config_data = {
     "dias_anio": int(tanio), "dias_por_estado_anio": danio, "anomalias": anomalias,
     "ranking": ranking, "viajes": viajes_js, "lbl": lbl, "vM": vM, "vR": vR, "vP": vP, "limite": LIMITE_SUNAT
 }
-config_str = json.dumps(config_data)
+config_str = json.dumps(config_data, ensure_ascii=False)
 
 # =============================================================================
-# PLANTILLA HTML (ESTRUCTURA ESTÁNDAR, SIN TRAMPAS DE SINTAXIS)
+# PLANTILLA HTML (ESTRUCTURA ESTÁNDAR, SIN AMBIGÜEDADES)
 # =============================================================================
 html_template = """<!DOCTYPE html>
 <html lang="es">
@@ -136,29 +136,28 @@ html_template = """<!DOCTYPE html>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:system-ui,-apple-system,sans-serif;background:#f8f9fa;overflow-x:hidden}
+  body{font-family:system-ui,-apple-system,sans-serif;background:#f4f6f8;overflow-x:hidden}
   #bg{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0}
-  #login{position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(135deg,#0f172a,#1e293b);z-index:100;display:flex;align-items:center;justify-content:center}
-  #box{background:rgba(255,255,255,0.95);padding:30px;border-radius:12px;width:90%;max-width:320px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,0.3)}
-  #box input{width:100%;padding:12px;margin:8px 0;border:1px solid #ccc;border-radius:6px;font-size:1rem}
-  #box button{width:100%;padding:12px;background:#3b82f6;color:#fff;border:none;border-radius:6px;font-size:1rem;cursor:pointer;font-weight:600}
-  #err{color:#ef4444;margin-top:10px;display:none;font-size:0.9rem}
+  #login{position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(135deg,#0b1120,#1e293b);z-index:100;display:flex;align-items:center;justify-content:center}
+  #box{background:rgba(255,255,255,0.95);padding:30px;border-radius:12px;width:90%;max-width:340px;text-align:center;box-shadow:0 15px 40px rgba(0,0,0,0.4)}
+  #box input{width:100%;padding:12px;margin:10px 0;border:1px solid #cbd5e1;border-radius:6px;font-size:1rem}
+  #box button{width:100%;padding:12px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:1rem;cursor:pointer;font-weight:600}
+  #err{color:#dc2626;margin-top:8px;display:none;font-size:0.85rem}
   #app{display:none;padding:12px;position:relative;z-index:50}
-  .card{background:#fff;border-radius:10px;padding:16px;margin-bottom:12px;box-shadow:0 2px 6px rgba(0,0,0,0.08)}
-  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-  @media(max-width:480px){.grid-2{grid-template-columns:1fr}}
+  .card{background:#fff;border-radius:10px;padding:16px;margin-bottom:12px;box-shadow:0 2px 6px rgba(0,0,0,0.06)}
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:480px){.grid-2{grid-template-columns:1fr}}
   .chart-wrap{position:relative;height:240px;margin-top:8px;background:#fafafa;border-radius:8px}
   canvas{width:100%!important;height:100%!important}
-  .btn{background:#0d6efd;color:#fff;border:none;border-radius:6px;padding:8px 12px;cursor:pointer;margin:4px 2px;font-size:0.9rem}
-  .btn-outline{background:transparent;border:1px solid #0d6efd;color:#0d6efd}
+  .btn{background:#2563eb;color:#fff;border:none;border-radius:6px;padding:8px 12px;cursor:pointer;margin:4px 2px;font-size:0.9rem}
+  .btn-outline{background:transparent;border:1px solid #2563eb;color:#2563eb}
   table{width:100%;border-collapse:collapse;font-size:0.85rem;margin-top:8px}
   th,td{padding:8px;border-bottom:1px solid #eee;text-align:left}
   .badge-M{background:#3b82f6;color:#fff;padding:2px 6px;border-radius:4px;font-size:0.75rem}
   .badge-R{background:#22c55e;color:#fff;padding:2px 6px;border-radius:4px;font-size:0.75rem}
   .badge-P{background:#f59e0b;color:#000;padding:2px 6px;border-radius:4px;font-size:0.75rem}
-  .rank-box{background:#f8f9fa;padding:10px;border-radius:6px;min-width:120px;margin:5px}
-  .rank-item{display:flex;justify-content:space-between;align-items:center;font-size:0.8rem;margin:4px 0}
-  .flag{width:20px;height:14px;border-radius:2px;object-fit:cover}
+  .rank-box{background:#f8fafc;padding:10px;border-radius:6px;min-width:130px;margin:5px}
+  .rank-item{display:flex;justify-content:space-between;align-items:center;font-size:0.8rem;margin:5px 0}
+  .flag{width:20px;height:14px;border-radius:2px;object-fit:cover;margin-right:6px}
 </style>
 </head>
 <body>
@@ -171,17 +170,17 @@ html_template = """<!DOCTYPE html>
     <input id="u" type="text" placeholder="Usuario" value="admin">
     <input id="pw" type="password" placeholder="Contraseña">
     <button onclick="entrar()">INGRESAR</button>
-    <p id="err">Usuario o contraseña incorrectos</p>
+    <p id="err">Credenciales incorrectas</p>
   </div>
 </div>
 
 <div id="app">
-  <div class="card"><h1>🇵🇪 Estado Residencia Fiscal</h1><p id="summary"></p></div>
+  <div class="card"><h1>🇵🇪 Estado Residencia Fiscal</h1><p id="sum" style="margin-top:6px;font-size:0.95rem"></p></div>
   <div class="grid-2">
-    <div class="card"><h3>📅 Últimos 12m</h3><p id="d12"></p></div>
-    <div class="card"><h3>🗓️ Año Actual</h3><p id="da"></p></div>
+    <div class="card"><h3>📅 Últimos 12m</h3><p id="d12" style="font-size:1.4rem;font-weight:600"></p></div>
+    <div class="card"><h3>🗓️ Año Actual</h3><p id="da" style="font-size:1.4rem;font-weight:600"></p></div>
   </div>
-  <div class="card"><h2>📈 Evolución (M/R/P)</h2><div class="chart-wrap"><canvas id="chart"></canvas></div></div>
+  <div class="card"><h2>📈 Evolución Mensual</h2><div class="chart-wrap"><canvas id="chart"></canvas></div></div>
   <div class="card"><h2>🌍 Top Países</h2><div id="rank" style="display:flex;gap:10px;overflow-x:auto;padding:5px 0"></div></div>
   <div class="card"><h2>📋 Historial</h2>
     <div style="display:flex;gap:6px;margin-bottom:8px">
@@ -194,33 +193,29 @@ html_template = """<!DOCTYPE html>
   </div>
 </div>
 
-<!-- DATOS SEPARADOS PARA EVITAR ROTURA DE SINTAXIS -->
 <script id="cfg" type="application/json">{{ config_str | safe }}</script>
-
 <script>
 // 1. ANIMACIÓN VÉRTICES
-window.addEventListener('load', () => {
-  const cv = document.getElementById('bg'), cx = cv.getContext('2d');
+document.addEventListener('DOMContentLoaded', () => {
+  const cvs = document.getElementById('bg'), ctx = cvs.getContext('2d');
   let pts = [], w, h;
-  const resize = () => { w = cv.width = innerWidth; h = cv.height = innerHeight; };
-  window.addEventListener('resize', resize); resize();
-  for(let i=0; i<50; i++) pts.push({x:Math.random()*w, y:Math.random()*h, vx:Math.random()*2-1, vy:Math.random()*2-1});
+  const rsz = () => { w = cvs.width = window.innerWidth; h = cvs.height = window.innerHeight; };
+  window.addEventListener('resize', rsz); rsz();
+  for(let i=0; i<50; i++) pts.push({x:Math.random()*w, y:Math.random()*h, vx:(Math.random()-0.5)*1.5, vy:(Math.random()-0.5)*1.5});
   
-  function draw() {
-    cx.clearRect(0,0,w,h);
-    cx.fillStyle = 'rgba(147,197,253,0.6)';
+  const loop = () => {
+    ctx.clearRect(0,0,w,h); ctx.fillStyle='rgba(147,197,253,0.7)';
     pts.forEach(p => {
-      p.x += p.vx; p.y += p.vy;
+      p.x+=p.vx; p.y+=p.vy;
       if(p.x<0||p.x>w) p.vx*=-1; if(p.y<0||p.y>h) p.vy*=-1;
-      cx.beginPath(); cx.arc(p.x,p.y,2,0,Math.PI*2); cx.fill();
+      ctx.beginPath(); ctx.arc(p.x,p.y,2.5,0,Math.PI*2); ctx.fill();
     });
-    for(let i=0; i<pts.length; i++) for(let j=i; j<pts.length; j++) {
+    for(let i=0;i<pts.length;i++) for(let j=i;j<pts.length;j++) {
       const dx=pts[i].x-pts[j].x, dy=pts[i].y-pts[j].y, d=Math.sqrt(dx*dx+dy*dy);
-      if(d<140) { cx.strokeStyle=`rgba(147,197,253,${0.4-d/350})`; cx.lineWidth=1; cx.beginPath(); cx.moveTo(pts[i].x,pts[i].y); cx.lineTo(pts[j].x,pts[j].y); cx.stroke(); }
+      if(d<140) { ctx.strokeStyle=`rgba(147,197,253,${0.4-d/350})`; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(pts[i].x,pts[i].y); ctx.lineTo(pts[j].x,pts[j].y); ctx.stroke(); }
     }
-    requestAnimationFrame(draw);
-  }
-  draw();
+    requestAnimationFrame(loop);
+  }; loop();
 });
 
 // 2. LOGIN
@@ -228,27 +223,27 @@ function entrar() {
   if(document.getElementById('u').value === 'admin' && document.getElementById('pw').value === 'admin') {
     document.getElementById('login').style.display = 'none';
     document.getElementById('app').style.display = 'block';
-    iniciar();
+    iniciarApp();
   } else { document.getElementById('err').style.display = 'block'; }
 }
 document.getElementById('pw').addEventListener('keypress', e => { if(e.key==='Enter') entrar(); });
 
 // 3. APP
-function iniciar() {
+function iniciarApp() {
   try {
     const raw = document.getElementById('cfg')?.textContent;
-    if(!raw) throw new Error('Datos no encontrados');
+    if(!raw) throw new Error('Datos de configuración no encontrados');
     const C = JSON.parse(raw);
     
-    document.getElementById('summary').textContent = `Total: ${C.dias_12m} / ${C.limite} días`;
-    document.getElementById('d12').textContent = `${C.dias_12m} días (M:${C.dias_por_estado_12m.M} R:${C.dias_por_estado_12m.R} P:${C.dias_por_estado_12m.P})`;
+    document.getElementById('sum').textContent = `Total acumulado: ${C.dias_12m} / ${C.limite} días`;
+    document.getElementById('d12').textContent = `${C.dias_12m} días`;
     document.getElementById('da').textContent = `${C.dias_anio} días`;
 
     // Ranking
     let rhtml = '';
     for(let est of ["M","R","P"]) {
-      rhtml += `<div class="rank-box"><strong style="font-size:0.85rem">${est}</strong>`;
-      (C.ranking[est]||[]).forEach(r => rhtml += `<div class="rank-item"><img src="https://flagcdn.com/w40/${r.iso}.png" class="flag"><span>${r.pais}</span><span style="background:#e9ecef;padding:2px 6px;border-radius:4px">${r.dias}d</span></div>`);
+      rhtml += `<div class="rank-box"><strong style="font-size:0.9rem">${est}</strong>`;
+      (C.ranking[est]||[]).forEach(r => rhtml += `<div class="rank-item"><img src="https://flagcdn.com/w40/${r.iso}.png" class="flag"><span>${r.pais}</span><span style="background:#e2e8f0;padding:2px 8px;border-radius:4px">${r.dias}d</span></div>`);
       rhtml += '</div>';
     }
     document.getElementById('rank').innerHTML = rhtml;
@@ -257,7 +252,8 @@ function iniciar() {
     window.filt = f => {
       const d = f==='todos' ? C.viajes : C.viajes.filter(v=>v.estado===f);
       let h = '<table><tr><th>Salida</th><th>Retorno</th><th>País</th><th>Días</th><th>Estado</th></tr>';
-      d.slice().reverse().forEach(v => h += `<tr><td>${v.salida_str.split('-').reverse().join('/')}</td><td>${v.entrada_str.split('-').reverse().join('/')}</td><td>${v.pais}</td><td style="text-align:right">${v.dias}</td><td><span class="badge-${v.estado}">${v.estado}</span></td></tr>`);
+      if(!d.length) h += '<tr><td colspan="5" style="text-align:center;padding:15px;color:#64748b">Sin registros</td></tr>';
+      else d.slice().reverse().forEach(v => h += `<tr><td>${v.salida_str.split('-').reverse().join('/')}</td><td>${v.entrada_str.split('-').reverse().join('/')}</td><td>${v.pais}</td><td style="text-align:right">${v.dias}</td><td><span class="badge-${v.estado}">${v.estado}</span></td></tr>`);
       document.getElementById('hist').innerHTML = h + '</table>';
     };
     window.filt('todos');
@@ -268,21 +264,28 @@ function iniciar() {
       if(ctx && C.lbl.length > 0) {
         new Chart(ctx, {
           type: 'line',
-           {
+          data: {
             labels: C.lbl,
             datasets: [
-              {label:'M', data:C.vM, borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,0.1)', fill:true, tension:0.3},
-              {label:'R', data:C.vR, borderColor:'#22c55e', backgroundColor:'rgba(34,197,94,0.1)', fill:true, tension:0.3},
-              {label:'P', data:C.vP, borderColor:'#f59e0b', backgroundColor:'rgba(245,158,11,0.1)', fill:true, tension:0.3}
+              { label: 'Migraciones', data: C.vM, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.3 },
+              { label: 'Registro', data: C.vR, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.1)', fill: true, tension: 0.3 },
+              { label: 'Proyectado', data: C.vP, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: true, tension: 0.3 }
             ]
           },
-          options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{ticks:{maxRotation:45,autoSkip:true,maxTicksLimit:10},grid:{display:false}},y:{beginAtZero:true,grid:{color:'rgba(0,0,0,0.05)'}}} }
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false }, tooltip: { backgroundColor: '#0f172a', titleFont: { size: 11 }, bodyFont: { size: 10 } } },
+            scales: {
+              x: { ticks: { maxRotation: 45, autoSkip: true, maxTicksLimit: 10, font: { size: 9 } }, grid: { display: false } },
+              y: { beginAtZero: true, ticks: { stepSize: 5, font: { size: 9 } }, grid: { color: '#e2e8f0' } }
+            }
+          }
         });
       }
     }, 100);
   } catch(e) {
     console.error(e);
-    alert('Error al cargar el panel: ' + e.message);
+    alert('Error al cargar: ' + e.message);
   }
 }
 </script>
@@ -301,4 +304,4 @@ html_final = Template(html_template).render(
 
 with open("index.html", "w", encoding="utf-8") as f:
     f.write(html_final)
-print("✅ index.html generado correctamente | Login: admin / admin")
+print("✅ index.html generado | Login: admin / admin")
