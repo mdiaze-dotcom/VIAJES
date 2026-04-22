@@ -513,7 +513,7 @@ html_content = Template(html_template).render(
     ca=ca, ea=ea, ma=ma,
     anio_act=hoy.year, dias_anio=tanio, dias_por_estado_anio=danio,
     ranking=ranking,
-    config_json=config_json
+    config_json_str=config_json_str
 )
 
 # 3. Guardar archivo
