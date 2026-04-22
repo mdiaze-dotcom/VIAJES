@@ -361,24 +361,30 @@ document.addEventListener('DOMContentLoaded', function() {
 </html>"""
 
 # =============================================================================
-# RENDERIZADO Y GUARDADO
+# RENDERIZADO FINAL (CORREGIDO: Pasa variables explícitas a Jinja2)
 # =============================================================================
+
+# 1. JSON solo para JavaScript (frontend interactivo)
 config_json = json.dumps({
     "app_url": APPS_SCRIPT_URL,
     "dias_12m": t12m, "dias_por_estado_12m": d12m,
     "dias_anio": tanio, "dias_por_estado_anio": danio,
-    "anio_act": hoy.year,
-    "c12": c12, "e12": e12, "m12": m12,
-    "ca": ca, "ea": ea, "ma": ma,
-    "anomalias": anomalias,
-    "ranking": ranking,
-    "viajes": viajes_js,
-    "lbl": lbl, "vM": vM, "vR": vR, "vP": vP,
-    "limite": LIMITE_SUNAT
+    "anomalias": anomalias, "ranking": ranking, "viajes": viajes_js,
+    "lbl": lbl, "vM": vM, "vR": vR, "vP": vP, "limite": LIMITE_SUNAT
 })
 
-html_content = Template(html_template).render(config_json=config_json)
+# 2. Renderizado HTML: PASAMOS CADA VARIABLE que usa el template estático
+html_content = Template(html_template).render(
+    c12=c12, e12=e12, m12=m12,
+    dias_12m=t12m, dias_por_estado_12m=d12m, limite=LIMITE_SUNAT,
+    anomalias=anomalias,
+    ca=ca, ea=ea, ma=ma,
+    anio_act=hoy.year, dias_anio=tanio, dias_por_estado_anio=danio,
+    ranking=ranking,
+    config_json=config_json
+)
 
+# 3. Guardar archivo
 with open("index.html", "w", encoding="utf-8") as f:
     f.write(html_content)
 print(f"✅ index.html generado correctamente | 12m: {t12m}d | Años: {tanio}d | Viajes: {len(viajes_df)}")
