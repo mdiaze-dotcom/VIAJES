@@ -1,5 +1,5 @@
 # =============================================================================
-# CONTROL SUNAT - VERSIÓN FINAL (ANIMACIÓN VISIBLE DESDE EL INICIO)
+# CONTROL SUNAT - VERSIÓN FINAL ESTABLE (Login funcional + Animación visible)
 # =============================================================================
 import os, json, pandas as pd, gspread
 from jinja2 import Template
@@ -125,47 +125,34 @@ config_data = {
 config_str = json.dumps(config_data, ensure_ascii=False)
 
 # =============================================================================
-# PLANTILLA HTML (ESTRUCTURA BLINDADA PARA ANIMACIÓN VISIBLE)
+# PLANTILLA HTML (ESTABLE: Login intacto + Animación visible detrás)
 # =============================================================================
 html_template = """<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <title>Control SUNAT</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:system-ui,-apple-system,sans-serif;background:#0b1120;overflow-x:hidden}
   
-  /* ✅ CANVAS AL FONDO ABSOLUTO */
-  #bg{position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:-1;background:#0b1120}
+  /* ✅ CANVAS: Fondo absoluto */
+  #bg{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0}
   
-  /* ✅ LOGIN SIN FONDO (SOLO LA CAJA TIENE FONDO) */
-  #login{position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:100;display:flex;align-items:center;justify-content:center;pointer-events:none}
+  /* ✅ LOGIN: Fondo semitransparente para ver la animación, SIN bloquear clics */
+  #login{position:fixed;top:0;left:0;width:100%;height:100%;z-index:10;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,0.5)}
   
-  #box{
-    pointer-events:auto;
-    background:rgba(15,23,42,0.85);
-    backdrop-filter:blur(12px);
-    -webkit-backdrop-filter:blur(12px);
-    padding:35px 30px;
-    border-radius:16px;
-    width:90%;max-width:340px;
-    text-align:center;
-    box-shadow:0 20px 50px rgba(0,0,0,0.6);
-    border:1px solid rgba(255,255,255,0.15);
-  }
-  #box h2{color:#f8fafc;margin-bottom:20px;font-size:1.5rem}
-  #box input{width:100%;padding:14px;margin:10px 0;border:1px solid #334155;border-radius:8px;background:rgba(255,255,255,0.05);color:#fff;font-size:1rem}
-  #box input::placeholder{color:#94a3b8}
-  #box button{width:100%;padding:14px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:1rem;cursor:pointer;font-weight:600;margin-top:10px;transition:0.2s}
-  #box button:hover{background:#3b82f6;transform:translateY(-2px)}
-  #err{color:#f87171;margin-top:12px;display:none;font-size:0.9rem}
+  /* ✅ CAJA DE LOGIN: Opaca para legibilidad */
+  #box{background:#ffffff;padding:30px;border-radius:12px;width:90%;max-width:340px;text-align:center;box-shadow:0 15px 40px rgba(0,0,0,0.4)}
+  #box h2{color:#0f172a;margin-bottom:20px;font-size:1.5rem}
+  #box input{width:100%;padding:12px;margin:10px 0;border:1px solid #cbd5e1;border-radius:6px;font-size:1rem}
+  #box button{width:100%;padding:12px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:1rem;cursor:pointer;font-weight:600}
+  #err{color:#dc2626;margin-top:10px;display:none;font-size:0.9rem}
   
   /* APP */
-  #app{display:none;padding:12px;position:relative;z-index:50;min-height:100vh;background:#f4f6f8}
+  #app{display:none;padding:12px;position:relative;z-index:20;min-height:100vh;background:#f4f6f8}
   .card{background:#fff;border-radius:10px;padding:16px;margin-bottom:12px;box-shadow:0 2px 6px rgba(0,0,0,0.06)}
   .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:480px){.grid-2{grid-template-columns:1fr}}
   .chart-wrap{position:relative;height:240px;margin-top:8px;background:#fafafa;border-radius:8px}
@@ -189,7 +176,7 @@ html_template = """<!DOCTYPE html>
 <div id="login">
   <div id="box">
     <h2>🔐 Acceso Seguro</h2>
-    <input id="u" type="text" placeholder="Usuario" value="admin" autocomplete="off">
+    <input id="u" type="text" placeholder="Usuario" value="admin">
     <input id="pw" type="password" placeholder="Contraseña">
     <button onclick="entrar()">INGRESAR</button>
     <p id="err">Credenciales incorrectas</p>
@@ -217,20 +204,15 @@ html_template = """<!DOCTYPE html>
 
 <script id="cfg" type="application/json">{{ config_str | safe }}</script>
 <script>
-// ✅ 1. ANIMACIÓN DE VÉRTICES (FORZADA AL INICIO)
-(function initAnimation() {
+// ✅ 1. ANIMACIÓN DE VÉRTICES (Ejecuta inmediatamente)
+(function() {
   const cvs = document.getElementById('bg');
   if (!cvs) return;
   const ctx = cvs.getContext('2d');
   let pts = [], w, h;
   
-  const resize = () => {
-    w = cvs.width = window.innerWidth;
-    h = cvs.height = window.innerHeight;
-  };
-  window.addEventListener('resize', resize);
-  resize();
-
+  const resize = () => { w = cvs.width = window.innerWidth; h = cvs.height = window.innerHeight; };
+  window.addEventListener('resize', resize); resize();
   for(let i=0; i<60; i++) pts.push({x:Math.random()*w, y:Math.random()*h, vx:(Math.random()-0.5)*1.5, vy:(Math.random()-0.5)*1.5});
 
   const draw = () => {
@@ -238,24 +220,18 @@ html_template = """<!DOCTYPE html>
     ctx.fillStyle = 'rgba(147,197,253,0.8)';
     pts.forEach(p => {
       p.x += p.vx; p.y += p.vy;
-      if(p.x<0||p.x>w) p.vx*=-1;
-      if(p.y<0||p.y>h) p.vy*=-1;
+      if(p.x<0||p.x>w) p.vx*=-1; if(p.y<0||p.y>h) p.vy*=-1;
       ctx.beginPath(); ctx.arc(p.x,p.y,2.5,0,Math.PI*2); ctx.fill();
     });
     for(let i=0;i<pts.length;i++) for(let j=i;j<pts.length;j++) {
       const dx=pts[i].x-pts[j].x, dy=pts[i].y-pts[j].y, d=Math.sqrt(dx*dx+dy*dy);
-      if(d<150) {
-        ctx.strokeStyle=`rgba(147,197,253,${0.4-d/375})`;
-        ctx.lineWidth=1;
-        ctx.beginPath(); ctx.moveTo(pts[i].x,pts[i].y); ctx.lineTo(pts[j].x,pts[j].y); ctx.stroke();
-      }
+      if(d<150) { ctx.strokeStyle=`rgba(147,197,253,${0.4-d/375})`; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(pts[i].x,pts[i].y); ctx.lineTo(pts[j].x,pts[j].y); ctx.stroke(); }
     }
     requestAnimationFrame(draw);
-  };
-  draw();
+  }; draw();
 })();
 
-// ✅ 2. LOGIN
+// ✅ 2. LOGIN (Lógica original intacta)
 function entrar() {
   if(document.getElementById('u').value === 'admin' && document.getElementById('pw').value === 'admin') {
     document.getElementById('login').style.display = 'none';
@@ -298,12 +274,12 @@ function iniciarApp() {
       if(ctx && C.lbl.length > 0) {
         new Chart(ctx, {
           type: 'line',
-           {
+          data: {
             labels: C.lbl,
             datasets: [
-              { label: 'Migraciones',  C.vM, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.3 },
-              { label: 'Registro',  C.vR, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.1)', fill: true, tension: 0.3 },
-              { label: 'Proyectado',  C.vP, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: true, tension: 0.3 }
+              { label: 'Migraciones', data: C.vM, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.3 },
+              { label: 'Registro', data: C.vR, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.1)', fill: true, tension: 0.3 },
+              { label: 'Proyectado', data: C.vP, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: true, tension: 0.3 }
             ]
           },
           options: {
@@ -335,4 +311,4 @@ html_final = Template(html_template).render(
 
 with open("index.html", "w", encoding="utf-8") as f:
     f.write(html_final)
-print("✅ index.html generado | Animación visible desde inicio | Login: admin/admin")
+print("✅ index.html generado | Login funcional + Animación visible | Credenciales: admin/admin")
