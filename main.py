@@ -25,7 +25,23 @@ PAIS_ISO = {
     "australia":"au","nueva zelanda":"nz","corea del sur":"kr","singapur":"sg","malasia":"my",
     "indonesia":"id","filipinas":"ph","vietnam":"vn","india":"in","sri lanka":"lk","emiratos arabes":"ae","dubai":"ae"
 }
-
+def normalizar_pais(nombre):
+    """Unifica variaciones de nombres de países a una forma estándar"""
+    if pd.isna(nombre): return "Desconocido"
+    n = str(nombre).strip().lower()
+    # Mapeo de variaciones comunes a nombre estándar
+    equivalencias = {
+        "eeuu": "Estados Unidos", "usa": "Estados Unidos", "us": "Estados Unidos",
+        "united states": "Estados Unidos", "estados unidos": "Estados Unidos",
+        "usa (estados unidos)": "Estados Unidos", "ee. uu.": "Estados Unidos",
+        "méxico": "México", "mexico": "México", "méjico": "México",
+        "reino unido": "Reino Unido", "inglaterra": "Reino Unido", "uk": "Reino Unido",
+        "gran bretaña": "Reino Unido", "british": "Reino Unido",
+        "colombia": "Colombia", "colômbia": "Colombia",
+        "españa": "España", "spain": "España",
+        # Agrega más según necesites
+    }
+    return equivalencias.get(n, str(nombre).strip().title())
 # 🔹 FUNCIONES AUXILIARES
 def parse_fecha(val):
     if pd.isna(val): return None
@@ -113,29 +129,38 @@ for k in sorted(grafica):
 
 ranking = {}
 for est in ["M", "R", "P"]:
-    # 1. Filtrar solo viajes finalizados (excluye en_curso)
+    # Filtrar viajes finalizados del estado actual
     fil = viajes_df[(viajes_df["estado"] == est) & (~viajes_df["en_curso"])].copy()
     
-    # 2. Sumar DÍAS exactos por país (evita contar viajes, suma duración real)
+    # Normalizar nombres de países ANTES de agrupar
+    fil["pais_norm"] = fil["pais"].apply(normalizar_pais)
+    
+    # Sumar días exactos por país normalizado
     dias_por_pais = defaultdict(int)
     for _, r in fil.iterrows():
-        dias_por_pais[r["pais"]] += int(r["dias"])
+        if r["dias"] > 0:  # Solo incluir si tiene días reales
+            dias_por_pais[r["pais_norm"]] += int(r["dias"])
     
-    # 3. Ordenar descendente y tomar top 5
+    # Debug: mostrar qué se está procesando
+    total_paises = len(dias_por_pais)
+    total_dias = sum(dias_por_pais.values())
+    print(f"📊 Ranking {est} | Países con días>0: {total_paises} | Total días: {total_dias}")
+    
+    # Top 5 ordenado descendente
     top_5 = sorted(dias_por_pais.items(), key=lambda x: x[1], reverse=True)[:5]
     
-    # 4. Generar lista para el HTML
     ranking[est] = [
         {"pais": p, "dias": d, "iso": PAIS_ISO.get(p.lower().strip(), "xx")} 
         for p, d in top_5
     ]
     
-    # 🔍 DEBUG: Muestra en consola EXACTAMENTE lo que se está calculando
-    print(f"📊 Ranking {est} | Países encontrados: {len(top_5)}")
+    # Mostrar detalles del top 5
     for p, d in top_5:
         print(f"   • {p}: {d} días")
-    if len(fil) == 0:
-        print(f"   ⚠️ No hay viajes finalizados con estado {est}")
+    
+    # 🔍 Alerta si EEUU no aparece pero debería
+    if "Estados Unidos" in dias_por_pais and "Estados Unidos" not in [x[0] for x in top_5]:
+        print(f"   ⚠️ ALERTA: Estados Unidos tiene {dias_por_pais['Estados Unidos']} días pero no está en top 5. Revisa si hay más de 5 países con más días.")
         
 viajes_js = []
 if not viajes_df.empty:

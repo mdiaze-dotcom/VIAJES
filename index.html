@@ -41,10 +41,10 @@
 <div class="card status-red">
   <h1>🇵🇪 Estado Residencia Fiscal</h1>
   <div class="metric">🔴 En riesgo</div>
-  <p style="margin:4px 0 0">211 días. Riesgo de pérdida fiscal.</p>
-  <p style="margin:8px 0 0"><strong>Total últimos 12m:</strong> 211 / 183 días</p>
-  <div style="font-size:0.85rem;color:#6c757d">🔵M:206d | 🟢R:5d | 🟡P:0d</div>
-  <div class="alert">⚠️ ⚠️ M: Entrada sin salida MEXICO, ℹ️ M: En curso EE.UU, ℹ️ R: En curso FRANCIA...</div>
+  <p style="margin:4px 0 0">212 días. Riesgo de pérdida fiscal.</p>
+  <p style="margin:8px 0 0"><strong>Total últimos 12m:</strong> 212 / 183 días</p>
+  <div style="font-size:0.85rem;color:#6c757d">🔵M:206d | 🟢R:6d | 🟡P:0d</div>
+  <div class="alert">⚠️ ⚠️ M: Entrada sin salida MEXICO, ℹ️ M: En curso ESTADOS UNIDOS, ℹ️ R: En curso FRANCIA</div>
   
   <div class="alert" style="background:#f8d7da;border-color:#dc3545;color:#842029">🔴 <strong>ALERTA:</strong> Superaste los 183 días.</div>
   
@@ -53,12 +53,12 @@
 <div class="grid-2">
   <div class="card status-red">
     <h3>📅 Últimos 12 meses</h3>
-    <div class="metric" style="font-size:1.6rem">211 días</div>
+    <div class="metric" style="font-size:1.6rem">212 días</div>
     <span class="badge badge-red">🔴 En riesgo</span>
   </div>
   <div class="card status-orange">
     <h3>🗓️ Año 2026</h3>
-    <div class="metric" style="font-size:1.6rem">157 días</div>
+    <div class="metric" style="font-size:1.6rem">160 días</div>
     <span class="badge badge-orange">🟡 Posible riesgo</span>
   </div>
 </div>
@@ -82,25 +82,25 @@
       
         
         <div class="ranking-item">
-          <img src="https://flagcdn.com/w40/xx.png" class="ranking-flag" alt="VENEZUELA" onerror="this.style.display='none'">
+          <img src="https://flagcdn.com/w40/xx.png" class="ranking-flag" alt="Venezuela" onerror="this.style.display='none'">
           <span style="font-size:0.8rem">Venezuela</span>
           <span style="font-size:0.75rem;background:#e9ecef;padding:2px 6px;border-radius:4px">43d</span>
         </div>
         
         <div class="ranking-item">
-          <img src="https://flagcdn.com/w40/xx.png" class="ranking-flag" alt="EE.UU" onerror="this.style.display='none'">
-          <span style="font-size:0.8rem">Ee.uu</span>
+          <img src="https://flagcdn.com/w40/us.png" class="ranking-flag" alt="Estados Unidos" onerror="this.style.display='none'">
+          <span style="font-size:0.8rem">Estados Unidos</span>
           <span style="font-size:0.75rem;background:#e9ecef;padding:2px 6px;border-radius:4px">21d</span>
         </div>
         
         <div class="ranking-item">
-          <img src="https://flagcdn.com/w40/mx.png" class="ranking-flag" alt="MEXICO" onerror="this.style.display='none'">
-          <span style="font-size:0.8rem">Mexico</span>
+          <img src="https://flagcdn.com/w40/mx.png" class="ranking-flag" alt="México" onerror="this.style.display='none'">
+          <span style="font-size:0.8rem">México</span>
           <span style="font-size:0.75rem;background:#e9ecef;padding:2px 6px;border-radius:4px">17d</span>
         </div>
         
         <div class="ranking-item">
-          <img src="https://flagcdn.com/w40/bo.png" class="ranking-flag" alt="BOLIVIA" onerror="this.style.display='none'">
+          <img src="https://flagcdn.com/w40/bo.png" class="ranking-flag" alt="Bolivia" onerror="this.style.display='none'">
           <span style="font-size:0.8rem">Bolivia</span>
           <span style="font-size:0.75rem;background:#e9ecef;padding:2px 6px;border-radius:4px">16d</span>
         </div>
@@ -111,7 +111,13 @@
     <div style="background:#f8f9fa;border-radius:8px;padding:8px">
       <strong class="badge badge-R">R</strong>
       
-        <p style="font-size:0.75rem;color:#6c757d;margin:4px 0">-</p>
+        
+        <div class="ranking-item">
+          <img src="https://flagcdn.com/w40/in.png" class="ranking-flag" alt="India" onerror="this.style.display='none'">
+          <span style="font-size:0.8rem">India</span>
+          <span style="font-size:0.75rem;background:#e9ecef;padding:2px 6px;border-radius:4px">5d</span>
+        </div>
+        
       
     </div>
     
@@ -156,7 +162,7 @@
 document.addEventListener('DOMContentLoaded', function() {
   try {
     // Cargar configuración inyectada desde Python
-    const C = {"app_url": "https://script.google.com/macros/s/AKfycbzilKCIxldBCYIR2tP8-_pUdMKyCofaCIQ9hKUD452JBz7IDWvXNuWdHzN2mSA22JoP8g/exec", "dias_12m": 211, "dias_por_estado_12m": {"M": 206, "R": 5, "P": 0}, "dias_anio": 157, "dias_por_estado_anio": {"M": 152, "R": 5, "P": 0}, "anomalias": ["\u26a0\ufe0f M: Entrada sin salida MEXICO", "\u2139\ufe0f M: En curso EE.UU", "\u2139\ufe0f R: En curso FRANCIA", "\u2139\ufe0f R: En curso INDIA"], "ranking": {"M": [{"pais": "VENEZUELA", "dias": 43, "iso": "xx"}, {"pais": "EE.UU", "dias": 21, "iso": "xx"}, {"pais": "MEXICO", "dias": 17, "iso": "mx"}, {"pais": "BOLIVIA", "dias": 16, "iso": "bo"}], "R": [], "P": []}, "viajes": [{"pais": "EE.UU", "salida_str": "2025-06-23", "entrada_str": "2025-07-02", "estado": "M", "en_curso": false, "dias": 8}, {"pais": "BOLIVIA", "salida_str": "2025-07-19", "entrada_str": "2025-08-05", "estado": "M", "en_curso": false, "dias": 16}, {"pais": "EE.UU", "salida_str": "2025-10-01", "entrada_str": "2025-10-15", "estado": "M", "en_curso": false, "dias": 13}, {"pais": "MEXICO", "salida_str": "2025-11-12", "entrada_str": "2025-11-21", "estado": "M", "en_curso": false, "dias": 8}, {"pais": "MEXICO", "salida_str": "2025-12-05", "entrada_str": "2025-12-15", "estado": "M", "en_curso": false, "dias": 9}, {"pais": "VENEZUELA", "salida_str": "2026-02-15", "entrada_str": "2026-03-24", "estado": "M", "en_curso": false, "dias": 36}, {"pais": "VENEZUELA", "salida_str": "2026-04-12", "entrada_str": "2026-04-20", "estado": "M", "en_curso": false, "dias": 7}, {"pais": "EE.UU", "salida_str": "2026-01-02", "entrada_str": "2026-04-22", "estado": "M", "en_curso": true, "dias": 109}, {"pais": "FRANCIA", "salida_str": "2026-04-18", "entrada_str": "2026-04-22", "estado": "R", "en_curso": true, "dias": 3}, {"pais": "INDIA", "salida_str": "2026-04-19", "entrada_str": "2026-04-22", "estado": "R", "en_curso": true, "dias": 2}], "lbl": ["Jun 2025", "Jul 2025", "Ago 2025", "Oct 2025", "Nov 2025", "Dic 2025", "Ene 2026", "Feb 2026", "Mar 2026", "Abr 2026"], "vM": [7, 13, 4, 13, 8, 9, 29, 41, 54, 28], "vR": [0, 0, 0, 0, 0, 0, 0, 0, 0, 5], "vP": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "limite": 183};
+    const C = {"app_url": "https://script.google.com/macros/s/AKfycbzilKCIxldBCYIR2tP8-_pUdMKyCofaCIQ9hKUD452JBz7IDWvXNuWdHzN2mSA22JoP8g/exec", "dias_12m": 212, "dias_por_estado_12m": {"M": 206, "R": 6, "P": 0}, "dias_anio": 160, "dias_por_estado_anio": {"M": 152, "R": 8, "P": 0}, "anomalias": ["\u26a0\ufe0f M: Entrada sin salida MEXICO", "\u2139\ufe0f M: En curso ESTADOS UNIDOS", "\u2139\ufe0f R: En curso FRANCIA"], "ranking": {"M": [{"pais": "Venezuela", "dias": 43, "iso": "xx"}, {"pais": "Estados Unidos", "dias": 21, "iso": "us"}, {"pais": "M\u00e9xico", "dias": 17, "iso": "mx"}, {"pais": "Bolivia", "dias": 16, "iso": "bo"}], "R": [{"pais": "India", "dias": 5, "iso": "in"}], "P": []}, "viajes": [{"pais": "ESTADOS UNIDOS", "salida_str": "2025-06-23", "entrada_str": "2025-07-02", "estado": "M", "en_curso": false, "dias": 8}, {"pais": "BOLIVIA", "salida_str": "2025-07-19", "entrada_str": "2025-08-05", "estado": "M", "en_curso": false, "dias": 16}, {"pais": "ESTADOS UNIDOS", "salida_str": "2025-10-01", "entrada_str": "2025-10-15", "estado": "M", "en_curso": false, "dias": 13}, {"pais": "MEXICO", "salida_str": "2025-11-12", "entrada_str": "2025-11-21", "estado": "M", "en_curso": false, "dias": 8}, {"pais": "MEXICO", "salida_str": "2025-12-05", "entrada_str": "2025-12-15", "estado": "M", "en_curso": false, "dias": 9}, {"pais": "VENEZUELA", "salida_str": "2026-02-15", "entrada_str": "2026-03-24", "estado": "M", "en_curso": false, "dias": 36}, {"pais": "VENEZUELA", "salida_str": "2026-04-12", "entrada_str": "2026-04-20", "estado": "M", "en_curso": false, "dias": 7}, {"pais": "INDIA", "salida_str": "2026-04-19", "entrada_str": "2026-04-25", "estado": "R", "en_curso": false, "dias": 5}, {"pais": "ESTADOS UNIDOS", "salida_str": "2026-01-02", "entrada_str": "2026-04-22", "estado": "M", "en_curso": true, "dias": 109}, {"pais": "FRANCIA", "salida_str": "2026-04-18", "entrada_str": "2026-04-22", "estado": "R", "en_curso": true, "dias": 3}], "lbl": ["Jun 2025", "Jul 2025", "Ago 2025", "Oct 2025", "Nov 2025", "Dic 2025", "Ene 2026", "Feb 2026", "Mar 2026", "Abr 2026"], "vM": [7, 13, 4, 13, 8, 9, 29, 41, 54, 28], "vR": [0, 0, 0, 0, 0, 0, 0, 0, 0, 8], "vP": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "limite": 183};
     console.log('✅ Datos cargados | Viajes:', C.viajes.length, '| Meses:', C.lbl.length);
 
     // Helpers
