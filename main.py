@@ -1,3 +1,6 @@
+# =============================================================================
+# CONTROL SUNAT - VERSIÓN M/R/P + PROYECCIONES MÚLTIPLES + GRÁFICO MULTICOLOR
+# =============================================================================
 import os
 import json
 import re
@@ -12,86 +15,78 @@ SHEET_ID = os.environ["SHEET_ID"]
 APPS_SCRIPT_URL = os.environ["APPS_SCRIPT_URL"]
 CREDENTIALS_JSON = json.loads(os.environ["GOOGLE_CREDENTIALS"])
 
+# 🔹 CONSTANTES DE NEGOCIO
+LIMITE_SUNAT = 183
+UMBRALES = {"verde": 150, "amarillo": 182, "rojo": 183}
+ESTADOS = {"M": {"label": "Migraciones", "color": "#3b82f6"},  # Azul
+           "R": {"label": "Registro", "color": "#22c55e"},      # Verde
+           "P": {"label": "Proyectado", "color": "#f59e0b"}}    # Ámbar
+
 def get_semaforo(dias):
-    if dias < 150: return "green", "🟢 Sin riesgo", "Viajes dentro del límite seguro."
-    elif dias < 183: return "orange", "🟡 Posible riesgo", f"Acumulados {dias} días. Evalúa reducir estancias."
+    if dias < UMBRALES["verde"]: return "green", "🟢 Sin riesgo", "Viajes dentro del límite seguro."
+    elif dias < UMBRALES["amarillo"]: return "orange", "🟡 Posible riesgo", f"Acumulados {dias} días. Evalúa reducir estancias."
     else: return "red", "🔴 En riesgo", f"{dias} días. PODRÍAS perder domicilio fiscal."
 
 def eventos_a_viajes(df):
+    """Convierte eventos ENTRADA/SALIDA en viajes, preservando ESTADO."""
     viajes, anomalias = [], []
-    sal_act, pais_act, f_sal = None, None, None
+    buffer = {}  # {pais: {salida: fecha, estado: str}}
+    
     for _, row in df.iterrows():
-        tipo, fecha, pais = row["TIPO"], row["FECHA"], str(row["PAIS"]).strip()
+        tipo, fecha, pais, estado = row["TIPO"], row["FECHA"], str(row["PAIS"]).strip(), row["ESTADO"]
+        key = f"{pais}_{estado}"
+        
         if tipo == "SALIDA":
-            if sal_act is not None: anomalias.append(f"⚠️ Salida sin entrada previa ({f_sal.strftime('%d/%m/%Y')})")
-            sal_act, pais_act, f_sal = True, pais, fecha
-        elif tipo == "ENTRADA" and sal_act is not None:
-            dias = (fecha - f_sal).days - 1
-            viajes.append({"salida":f_sal, "entrada":fecha, "pais":pais_act, "dias":max(0,dias), "en_curso":False})
-            sal_act, pais_act, f_sal = None, None, None
-        elif tipo == "ENTRADA" and sal_act is None:
-            anomalias.append(f"⚠️ Entrada sin salida previa ({fecha.strftime('%d/%m/%Y')})")
-    if sal_act is not None:
-        hoy = date.today()
-        dias = (hoy - f_sal).days - 1
-        viajes.append({"salida":f_sal, "entrada":hoy, "pais":pais_act, "dias":max(0,dias), "en_curso":True})
-        anomalias.append("ℹ️ Viaje en curso (sin retorno)")
+            if key in buffer:
+                anomalias.append(f"⚠️ {estado}: Salida duplicada para {pais} ({buffer[key]['salida'].strftime('%d/%m/%Y')})")
+            buffer[key] = {"salida": fecha, "estado": estado, "pais": pais}
+            
+        elif tipo == "ENTRADA" and key in buffer:
+            inicio = buffer.pop(key)
+            dias = (fecha - inicio["salida"]).days - 1  # SUNAT: excluye día salida y retorno
+            viajes.append({
+                "salida": inicio["salida"], "entrada": fecha, "pais": inicio["pais"],
+                "dias": max(0, dias), "estado": inicio["estado"], "en_curso": False
+            })
+        elif tipo == "ENTRADA" and key not in buffer:
+            anomalias.append(f"⚠️ {estado}: Entrada sin salida previa para {pais} ({fecha.strftime('%d/%m/%Y')})")
+    
+    # Viajes en curso
+    hoy = date.today()
+    for key, inicio in buffer.items():
+        dias = (hoy - inicio["salida"]).days - 1
+        viajes.append({
+            "salida": inicio["salida"], "entrada": hoy, "pais": inicio["pais"],
+            "dias": max(0, dias), "estado": inicio["estado"], "en_curso": True
+        })
+        if inicio["estado"] == "P":
+            anomalias.append(f"ℹ️ Proyección en curso: {inicio['pais']} desde {inicio['salida'].strftime('%d/%m/%Y')}")
+    
     return pd.DataFrame(viajes), anomalias
 
-PAIS_ISO = {"españa":"es","perú":"pe","usa":"us","estados unidos":"us","mexico":"mx","méxico":"mx",
-    "colombia":"co","argentina":"ar","chile":"cl","ecuador":"ec","bolivia":"bo","brasil":"br",
-    "italia":"it","francia":"fr","alemania":"de","canada":"ca","japon":"jp","china":"cn",
-    "portugal":"pt","rusia":"ru","turquia":"tr","panama":"pa","costa rica":"cr","inglaterra":"gb",
-    "reino unido":"gb","irlanda":"ie","austria":"at","suiza":"ch","holanda":"nl","paises bajos":"nl",
-    "belgica":"be","noruega":"no","suecia":"se","dinamarca":"dk","finlandia":"fi","polonia":"pl",
-    "grecia":"gr","islandia":"is","israel":"il","egipto":"eg","marruecos":"ma","sudafrica":"za",
-    "australia":"au","nueva zelanda":"nz","corea del sur":"kr","singapur":"sg","malasia":"my",
-    "indonesia":"id","filipinas":"ph","vietnam":"vn","india":"in","sri lanka":"lk","emiratos arabes":"ae","dubai":"ae"}
-
-# 🔹 CONEXIÓN Y LECTURA
-gc = gspread.service_account_from_dict(CREDENTIALS_JSON)
-sheet = gc.open_by_key(SHEET_ID).sheet1
-df = pd.DataFrame(sheet.get_all_records())
-
-df.columns = [c.strip().upper().replace(" ", "_").replace("/", "_") for c in df.columns]
-df = df.rename(columns={"TIPO_DE_MOVIMIENTO":"TIPO", "FECHA_DE_MOVIMIENTO":"FECHA", "PROCEDENCIA_DESTINO":"PAIS"})
-
-def parsear_fecha_segura(val):
-    if pd.isna(val): return None
-    try: return pd.to_datetime(str(val).strip(), dayfirst=True, errors='coerce').date()
-    except: return None
-
-df["FECHA"] = df["FECHA"].apply(parsear_fecha_segura)
-df = df.dropna(subset=["FECHA", "TIPO"]).sort_values("FECHA").reset_index(drop=True)
-df["TIPO"] = df["TIPO"].astype(str).str.strip().str.upper()
-
-hoy = date.today()
-viajes_df, anomalias = eventos_a_viajes(df)
-
-def contar_dias_ventana(vdf, fecha_ref, dias=365):
-    if vdf.empty: return 0
+def contar_dias_por_estado(vdf, fecha_ref, dias=365):
+    """Retorna dict {estado: total_días} para ventana móvil."""
+    result = {"M": 0, "R": 0, "P": 0}
+    if vdf.empty: return result
     end = fecha_ref
     start = end - timedelta(days=dias-1)
-    count = 0
+    
     for _, v in vdf.iterrows():
         eff_s = v["salida"] + timedelta(days=1)
         eff_e = v["entrada"] - timedelta(days=1)
         if eff_s > eff_e: continue
         ov_s, ov_e = max(eff_s, start), min(eff_e, end)
-        if ov_s <= ov_e: count += (ov_e - ov_s).days + 1
-    return count
+        if ov_s <= ov_e:
+            dias_contados = (ov_e - ov_s).days + 1
+            result[v["estado"]] = result.get(v["estado"], 0) + dias_contados
+    return result
 
-dias_12m = contar_dias_ventana(viajes_df, hoy, 365)
-anio_act = hoy.year
-dias_anio = contar_dias_ventana(viajes_df, date(anio_act, 12, 31), 365)
-c12, e12, m12 = get_semaforo(dias_12m)
-ca, ea, ma = get_semaforo(dias_anio)
-
-# 🔹 GRÁFICA HISTÓRICA
-chart_labels, chart_values = [], []
-if not viajes_df.empty:
-    dias_por_mes = defaultdict(int)
-    for _, v in viajes_df.iterrows():
+def calcular_grafica_mensual(vdf):
+    """Retorna datos para gráfico apilado: {mes: {estado: días}} desde 2000."""
+    datos = defaultdict(lambda: {"M": 0, "R": 0, "P": 0})
+    if vdf.empty: return datos
+    
+    for _, v in vdf.iterrows():
         eff_s = v["salida"] + timedelta(days=1)
         eff_e = v["entrada"] - timedelta(days=1)
         if eff_s > eff_e: continue
@@ -99,37 +94,114 @@ if not viajes_df.empty:
         while cur <= eff_e:
             if cur.year >= 2000:
                 key = f"{cur.year}-{cur.month:02d}"
-                dias_por_mes[key] += 1
+                datos[key][v["estado"]] += 1
             cur += timedelta(days=1)
-    meses_es = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
-    for mes_key in sorted(dias_por_mes.keys()):
-        year, month = mes_key.split("-")
-        chart_labels.append(f"{meses_es[int(month)-1]} {year}")
-        chart_values.append(dias_por_mes[mes_key])
+    return dict(sorted(datos.items()))
 
-# 🔹 PREPARAR JSON PARA JS
+# 🔹 CONEXIÓN Y LECTURA
+gc = gspread.service_account_from_dict(CREDENTIALS_JSON)
+sheet = gc.open_by_key(SHEET_ID).sheet1
+df = pd.DataFrame(sheet.get_all_records())
+
+# Normalizar columnas
+df.columns = [c.strip().upper().replace(" ", "_").replace("/", "_") for c in df.columns]
+df = df.rename(columns={
+    "TIPO_DE_MOVIMIENTO": "TIPO",
+    "FECHA_DE_MOVIMIENTO": "FECHA",
+    "PROCEDENCIA_DESTINO": "PAIS",
+    "ESTADO": "ESTADO"
+})
+
+# Parseo seguro de fechas DD/MM/YYYY
+def parsear_fecha_segura(val):
+    if pd.isna(val): return None
+    try:
+        return pd.to_datetime(str(val).strip(), dayfirst=True, errors='coerce').date()
+    except: return None
+
+df["FECHA"] = df["FECHA"].apply(parsear_fecha_segura)
+df = df.dropna(subset=["FECHA", "TIPO", "ESTADO"]).sort_values("FECHA").reset_index(drop=True)
+df["TIPO"] = df["TIPO"].astype(str).str.strip().str.upper()
+df["ESTADO"] = df["ESTADO"].astype(str).str.strip().str.upper()
+df = df[df["ESTADO"].isin(["M", "R", "P"])]  # Filtrar valores inválidos
+
+hoy = date.today()
+viajes_df, anomalias = eventos_a_viajes(df)
+
+# 🔹 CÁLCULOS DE RESUMEN
+dias_por_estado_12m = contar_dias_por_estado(viajes_df, hoy, 365)
+total_12m = sum(dias_por_estado_12m.values())
+c12, e12, m12 = get_semaforo(total_12m)
+
+dias_por_estado_anio = contar_dias_por_estado(viajes_df, date(hoy.year, 12, 31), 365)
+total_anio = sum(dias_por_estado_anio.values())
+ca, ea, ma = get_semaforo(total_anio)
+
+# 🔹 DATOS PARA GRÁFICO APILADO
+grafica_datos = calcular_grafica_mensual(viajes_df)
+chart_labels, chart_M, chart_R, chart_P = [], [], [], []
+meses_es = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+
+for mes_key in grafica_datos:
+    year, month = mes_key.split("-")
+    chart_labels.append(f"{meses_es[int(month)-1]} {year}")
+    chart_M.append(grafica_datos[mes_key]["M"])
+    chart_R.append(grafica_datos[mes_key]["R"])
+    chart_P.append(grafica_datos[mes_key]["P"])
+
+# 🔹 PREPARAR DATOS PARA JS
 viajes_json = []
 if not viajes_df.empty:
     for _, row in viajes_df.iterrows():
         viajes_json.append({
             "pais": row["pais"],
             "salida_str": row["salida"].strftime("%Y-%m-%d"),
-            "entrada_str": row["entrada"].strftime("%Y-%m-%d")
+            "entrada_str": row["entrada"].strftime("%Y-%m-%d"),
+            "estado": row["estado"],
+            "en_curso": row["en_curso"],
+            "dias": row["dias"]
         })
 
-ranking = Counter()
-if not viajes_df.empty: ranking = Counter(viajes_df[~viajes_df["en_curso"]]["pais"]).most_common(5)
-ranking_data = [{"pais": p, "dias": d, "iso": PAIS_ISO.get(p.lower().strip(), "xx")} for p, d in ranking]
+# Ranking por estado
+ranking_data = {}
+for estado in ["M", "R", "P"]:
+    filtrado = viajes_df[(viajes_df["estado"] == estado) & (~viajes_df["en_curso"])]
+    ranking = Counter(filtrado["pais"]).most_common(5) if not filtrado.empty else []
+    ranking_data[estado] = [
+        {"pais": p, "dias": d, "iso": {"españa":"es","perú":"pe","usa":"us","estados unidos":"us","mexico":"mx","méxico":"mx",
+            "colombia":"co","argentina":"ar","chile":"cl","ecuador":"ec","bolivia":"bo","brasil":"br",
+            "italia":"it","francia":"fr","alemania":"de","canada":"ca","japon":"jp","china":"cn",
+            "portugal":"pt","rusia":"ru","turquia":"tr","panama":"pa","costa rica":"cr","inglaterra":"gb",
+            "reino unido":"gb","irlanda":"ie","austria":"at","suiza":"ch","holanda":"nl","paises bajos":"nl",
+            "belgica":"be","noruega":"no","suecia":"se","dinamarca":"dk","finlandia":"fi","polonia":"pl",
+            "grecia":"gr","islandia":"is","israel":"il","egipto":"eg","marruecos":"ma","sudafrica":"za",
+            "australia":"au","nueva zelanda":"nz","corea del sur":"kr","singapur":"sg","malasia":"my",
+            "indonesia":"id","filipinas":"ph","vietnam":"vn","india":"in","sri lanka":"lk","emiratos arabes":"ae","dubai":"ae"}.get(p.lower().strip(), "xx")}
+        for p, d in ranking
+    ]
 
 config = {
-    "app_url": APPS_SCRIPT_URL, "dias_12m": dias_12m, "dias_anio": dias_anio, "anio_act": anio_act,
-    "c12": c12, "e12": e12, "m12": m12, "ca": ca, "ea": ea, "ma": ma,
-    "anomalias": anomalias, "ranking": ranking_data, "viajes": viajes_json,
-    "chart_labels": chart_labels, "chart_values": chart_values
+    "app_url": APPS_SCRIPT_URL,
+    "dias_12m": total_12m, "dias_por_estado_12m": dias_por_estado_12m,
+    "dias_anio": total_anio, "dias_por_estado_anio": dias_por_estado_anio,
+    "anio_act": hoy.year,
+    "c12": c12, "e12": e12, "m12": m12,
+    "ca": ca, "ea": ea, "ma": ma,
+    "anomalias": anomalias,
+    "ranking_data": ranking_data,
+    "viajes": viajes_json,
+    "chart_labels": chart_labels,
+    "chart_M": chart_M,
+    "chart_R": chart_R,
+    "chart_P": chart_P,
+    "estados_config": ESTADOS,
+    "limite_sunat": LIMITE_SUNAT
 }
 config_json = json.dumps(config)
 
-# 🔹 PLANTILLA HTML (Exactamente la versión funcional)
+# =============================================================================
+# PLANTILLA HTML ACTUALIZADA
+# =============================================================================
 html_template = """<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -147,18 +219,19 @@ html_template = """<!DOCTYPE html>
   h1,h2,h3{margin:0 0 8px;font-weight:600} h1{font-size:1.25rem} h2{font-size:1.1rem} h3{font-size:1rem}
   .metric{font-size:1.8rem;font-weight:700;margin:4px 0 8px}
   .badge{display:inline-block;padding:4px 10px;border-radius:20px;font-size:0.8rem;font-weight:500;margin-right:6px}
-  .badge-green{background:#d1e7dd;color:#0f5132} .badge-orange{background:#fff3cd;color:#664d03} .badge-red{background:#f8d7da;color:#842029}
+  .badge-green{background:#d1e7dd;color:#0f5132}.badge-orange{background:#fff3cd;color:#664d03}.badge-red{background:#f8d7da;color:#842029}
+  .badge-M{background:#3b82f6;color:#fff}.badge-R{background:#22c55e;color:#fff}.badge-P{background:#f59e0b;color:#000}
   .alert{background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:10px;margin:8px 0;font-size:0.85rem;color:#664d03}
   .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   @media(max-width:480px){.grid-2{grid-template-columns:1fr}}
-  .chart-wrapper{position:relative;width:100%;height:240px;margin-top:8px;min-height:240px;background:#fafafa;border-radius:8px}
+  .chart-wrapper{position:relative;width:100%;height:260px;margin-top:8px;min-height:260px;background:#fafafa;border-radius:8px}
   canvas{display:block;width:100%!important;height:100%!important}
   .btn{display:inline-flex;align-items:center;gap:6px;background:#0d6efd;color:#fff;border:none;border-radius:8px;padding:10px 14px;font-size:0.9rem;cursor:pointer;margin:4px 2px}
   .btn:hover{opacity:0.95}.btn:active{transform:scale(0.98)}.btn-outline{background:transparent;border:1px solid #0d6efd;color:#0d6efd}
-  .form-group{margin:10px 0} .form-group label{display:block;font-size:0.85rem;margin-bottom:4px;color:#495057}
+  .form-group{margin:10px 0}.form-group label{display:block;font-size:0.85rem;margin-bottom:4px;color:#495057}
   .form-group input,.form-group select{width:100%;padding:8px;border:1px solid #ced4da;border-radius:6px;font-size:0.9rem}
   .result-box{background:#f8f9fa;border-radius:8px;padding:10px;margin-top:10px;font-size:0.9rem}
-  .hidden{display:none} .loading{opacity:0.6;pointer-events:none}
+  .hidden{display:none}.loading{opacity:0.6;pointer-events:none}
   .table-responsive{overflow-x:auto;margin-top:8px}
   table{width:100%;border-collapse:collapse;font-size:0.9rem}
   th,td{padding:8px 10px;text-align:left;border-bottom:1px solid #eee}
@@ -172,6 +245,10 @@ html_template = """<!DOCTYPE html>
   .footer{text-align:center;font-size:0.7rem;color:#6c757d;margin-top:16px}
   .range-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   @media(max-width:380px){.range-grid{grid-template-columns:1fr}}
+  .estado-legend{display:flex;gap:12px;justify-content:center;margin:8px 0;font-size:0.8rem}
+  .estado-item{display:flex;align-items:center;gap:4px}
+  .estado-dot{width:12px;height:12px;border-radius:50%}
+  .chart-legend{display:flex;gap:16px;justify-content:center;margin-top:8px;font-size:0.75rem}
 </style>
 </head>
 <body>
@@ -180,56 +257,106 @@ html_template = """<!DOCTYPE html>
   <h1>🇵🇪 Estado Residencia Fiscal</h1>
   <div class="metric">{{e12}}</div>
   <p style="margin:4px 0 0">{{m12}}</p>
-  <p style="margin:8px 0 0"><strong>Máx. últimos 12m:</strong> {{dias_12m}} / 183 días</p>
-  {% if anomalias %}<div class="alert">⚠️ Revisa: {{', '.join(anomalias)}}</div>{% endif %}
+  <p style="margin:8px 0 0"><strong>Total últimos 12m:</strong> {{dias_12m}} / {{limite_sunat}} días</p>
+  <div style="font-size:0.85rem;color:#6c757d;margin-top:4px">
+    🔵 M: {{dias_por_estado_12m.M}}d | 🟢 R: {{dias_por_estado_12m.R}}d | 🟡 P: {{dias_por_estado_12m.P}}d
+  </div>
+  {% if anomalias %}<div class="alert">⚠️ {{', '.join(anomalias[:3])}}{{'...' if len(anomalias)>3 else ''}}</div>{% endif %}
+  {% if dias_12m >= limite_sunat %}
+  <div class="alert" style="background:#f8d7da;border-color:#dc3545;color:#842029">
+    🔴 <strong>ALERTA CRÍTICA:</strong> Has superado los {{limite_sunat}} días. Podrías perder tu domicilio fiscal en Perú.
+  </div>
+  {% elif dias_12m >= 150 %}
+  <div class="alert" style="background:#fff3cd">
+    ⚠️ <strong>Atención:</strong> Te acercas al límite ({{dias_12m}}/{{limite_sunat}} días). Planifica con cuidado.
+  </div>
+  {% endif %}
 </div>
 
 <div class="grid-2">
-  <div class="card status-{{c12}}"><h3>📅 Últimos 12 meses</h3><div class="metric" style="font-size:1.6rem">{{dias_12m}} días</div><span class="badge badge-{{'green' if dias_12m<150 else 'orange' if dias_12m<183 else 'red'}}">{{e12}}</span></div>
-  <div class="card status-{{ca}}"><h3>🗓️ Año {{anio_act}}</h3><div class="metric" style="font-size:1.6rem">{{dias_anio}} días</div><span class="badge badge-{{'green' if dias_anio<150 else 'orange' if dias_anio<183 else 'red'}}">{{ea}}</span></div>
-</div>
-
-<div class="card"><h2>📈 Días fuera por mes (histórico)</h2><div class="chart-wrapper"><canvas id="chart"></canvas></div></div>
-
-<div class="card"><h2>🌍 Top 5 países visitados</h2>
-  {% if ranking %}
-    {% for r in ranking %}
-    <div class="ranking-item"><img src="https://flagcdn.com/w40/{{r.iso}}.png" class="ranking-flag" alt="{{r.pais}}" onerror="this.style.display='none'"><span class="ranking-pais">{{r.pais|title}}</span><span class="ranking-cant">{{r.dias}} días</span></div>
-    {% endfor %}
-  {% else %}<p style="color:#6c757d;font-size:0.9rem">Sin datos de viajes completados aún.</p>{% endif %}
-</div>
-
-<div class="card">
-  <button id="btn-add" class="btn">➕ Agregar itinerario</button>
-  <div id="form-add" class="hidden" style="margin-top:12px">
-    <div class="form-group"><label>Tipo</label><select id="add-tipo"><option value="SALIDA">Salida</option><option value="ENTRADA">Entrada</option></select></div>
-    <div class="form-group"><label>Fecha (DD/MM/YYYY)</label><input type="text" id="add-fecha" placeholder="15/06/2025"></div>
-    <div class="form-group"><label>País</label><input type="text" id="add-pais" placeholder="España"></div>
-    <button id="btn-save" class="btn">💾 Guardar en Sheets</button>
-    <div id="res-add" class="result-box hidden"></div>
+  <div class="card status-{{c12}}">
+    <h3>📅 Últimos 12 meses</h3>
+    <div class="metric" style="font-size:1.6rem">{{dias_12m}} días</div>
+    <span class="badge badge-{{'green' if dias_12m<150 else 'orange' if dias_12m<183 else 'red'}}">{{e12}}</span>
+  </div>
+  <div class="card status-{{ca}}">
+    <h3>🗓️ Año {{anio_act}}</h3>
+    <div class="metric" style="font-size:1.6rem">{{dias_anio}} días</div>
+    <span class="badge badge-{{'green' if dias_anio<150 else 'orange' if dias_anio<183 else 'red'}}">{{ea}}</span>
   </div>
 </div>
 
 <div class="card">
-  <button id="btn-proj" class="btn btn-outline">✈️ Proyectar viaje</button>
+  <h2>📈 Días fuera por mes (histórico + proyecciones)</h2>
+  <div class="estado-legend">
+    <div class="estado-item"><span class="estado-dot" style="background:#3b82f6"></span> M: Migraciones</div>
+    <div class="estado-item"><span class="estado-dot" style="background:#22c55e"></span> R: Registro</div>
+    <div class="estado-item"><span class="estado-dot" style="background:#f59e0b"></span> P: Proyectado</div>
+  </div>
+  <div class="chart-wrapper"><canvas id="chart"></canvas></div>
+  <div class="chart-legend">
+    <span>🔵 Migraciones</span> • <span>🟢 Registro manual</span> • <span>🟡 Proyecciones</span>
+  </div>
+</div>
+
+<div class="card">
+  <h2>🌍 Top países por estado</h2>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px">
+    {% for estado in ["M","R","P"] %}
+    <div style="background:#f8f9fa;border-radius:8px;padding:8px">
+      <strong class="badge badge-{{estado}}">{{estados_config[estado].label}}</strong>
+      {% if ranking_data[estado] %}
+        {% for r in ranking_data[estado] %}
+        <div class="ranking-item" style="padding:4px 0;border-bottom:none">
+          <img src="https://flagcdn.com/w40/{{r.iso}}.png" class="ranking-flag" alt="{{r.pais}}" onerror="this.style.display='none'">
+          <span style="font-size:0.8rem">{{r.pais|title}}</span>
+          <span style="font-size:0.75rem;background:#e9ecef;padding:2px 6px;border-radius:4px">{{r.dias}}d</span>
+        </div>
+        {% endfor %}
+      {% else %}
+        <p style="font-size:0.75rem;color:#6c757d;margin:4px 0">Sin datos</p>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- FORMULARIO: AGREGAR/EDITAR PROYECCIONES (SOLO ESTADO P) -->
+<div class="card">
+  <button id="btn-proj" class="btn" style="background:#f59e0b;color:#000">✈️ Gestionar Proyecciones (P)</button>
   <div id="form-proj" class="hidden" style="margin-top:12px">
-    <div class="form-group"><label>Salida (DD/MM/YYYY)</label><input type="text" id="proj-s"></div>
-    <div class="form-group"><label>Retorno (DD/MM/YYYY)</label><input type="text" id="proj-r"></div>
-    <button id="btn-calc-proj" class="btn">📊 Calcular impacto</button>
+    <p style="font-size:0.8rem;color:#6c757d;margin-bottom:8px">
+      💡 Solo puedes editar proyecciones (estado P). Hasta 3 itinerarios.
+    </p>
+    <div id="projections-container">
+      <!-- Se generan 3 formularios idénticos -->
+    </div>
+    <button id="btn-add-projection" class="btn btn-outline" style="margin:8px 0">+ Agregar otro itinerario</button>
+    <button id="btn-save-proj" class="btn" style="background:#22c55e">💾 Guardar proyecciones</button>
     <div id="res-proj" class="result-box hidden"></div>
   </div>
 </div>
 
+<!-- TABLA DE VIAJES CON FILTRO POR ESTADO -->
 <div class="card">
-  <button id="btn-rango" class="btn" style="background:#6c757d">🔍 Analizar Rango de Fechas</button>
-  <div id="form-rango" class="hidden" style="margin-top:12px">
-    <div class="range-grid">
-      <div class="form-group"><label>Inicio (DD/MM/YYYY)</label><input type="text" id="rng-ini" placeholder="01/01/2024"></div>
-      <div class="form-group"><label>Fin (DD/MM/YYYY)</label><input type="text" id="rng-fin" placeholder="31/12/2024"></div>
-    </div>
-    <button id="btn-calc-rango" class="btn">📅 Calcular días acumulados</button>
-    <div id="res-rango" class="result-box hidden"></div>
-    <small style="color:#6c757d;display:block;margin-top:6px">⚠️ Máximo 12 meses (365 días) entre fechas.</small>
+  <h2>📋 Historial de viajes</h2>
+  <div style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap">
+    <button class="btn btn-outline" onclick="filtrarTabla('todos')" style="padding:6px 12px;font-size:0.8rem">Todos</button>
+    <button class="btn" style="padding:6px 12px;font-size:0.8rem;background:#3b82f6" onclick="filtrarTabla('M')">M</button>
+    <button class="btn" style="padding:6px 12px;font-size:0.8rem;background:#22c55e" onclick="filtrarTabla('R')">R</button>
+    <button class="btn" style="padding:6px 12px;font-size:0.8rem;background:#f59e0b;color:#000" onclick="filtrarTabla('P')">P</button>
+  </div>
+  <div class="table-responsive">
+    <table id="tabla-viajes">
+      <thead>
+        <tr>
+          <th>Salida</th><th>Retorno</th><th>País</th><th>Días</th><th>Estado</th><th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="tabla-body">
+        <!-- Se llena con JS -->
+      </tbody>
+    </table>
   </div>
 </div>
 
@@ -241,82 +368,210 @@ document.addEventListener('DOMContentLoaded', function() {
   try {
     const cfg = JSON.parse(document.getElementById('app-config').textContent);
     console.log('✅ Config OK | Viajes:', cfg.viajes.length, '| Chart:', cfg.chart_labels.length);
+
+    // Utilidades
     const parseFecha = s => { const p=s.trim().split('/'); return new Date(+p[2], +p[1]-1, +p[0]); };
     const diasEntre = (f1,f2) => Math.max(0, Math.floor((parseFecha(f2)-parseFecha(f1)-864e5)/864e5));
     const formatoMes = ym => { const [y,m]=ym.split('-'); return ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][+m-1]+' '+y; };
     const toggle = id => document.getElementById(id).classList.toggle('hidden');
     const showRes = (id, html) => { const el=document.getElementById(id); el.innerHTML=html; el.classList.remove('hidden'); };
     const regex = /^\\d{1,2}\\/\\d{1,2}\\/\\d{4}$/;
-    document.getElementById('btn-add').onclick = () => toggle('form-add');
-    document.getElementById('btn-proj').onclick = () => toggle('form-proj');
-    document.getElementById('btn-rango').onclick = () => toggle('form-rango');
-    document.getElementById('btn-save').onclick = async function() {
-      const t = document.getElementById('add-tipo').value, f = document.getElementById('add-fecha').value, p = document.getElementById('add-pais').value;
-      if (!regex.test(f)) return showRes('res-add', '❌ Usa formato DD/MM/YYYY');
-      this.classList.add('loading'); this.textContent = '⏳...';
-      try {
-        const res = await fetch(cfg.app_url, { method: 'POST', mode: 'cors', headers: {'Content-Type':'text/plain'}, body: JSON.stringify({tipo:t, fecha:f, pais:p}) });
-        const d = await res.json();
-        showRes('res-add', d.status==='success' ? '✅ Guardado. Refresca reporte en Colab.' : '❌ '+(d.message||'Error'));
-      } catch(e) { showRes('res-add', '❌ Error de red o URL inválida'); }
-      finally { this.classList.remove('loading'); this.textContent = '💾 Guardar en Sheets'; }
+    const estadosCfg = cfg.estados_config;
+
+    // Toggle formulario de proyecciones
+    document.getElementById('btn-proj').onclick = () => {
+      toggle('form-proj');
+      if (!document.getElementById('form-proj').classList.contains('hidden')) {
+        renderProjectionForms();
+        renderTablaViajes('todos');
+      }
     };
-    document.getElementById('btn-calc-proj').onclick = function() {
-      const s = document.getElementById('proj-s').value, r_ = document.getElementById('proj-r').value;
-      if (!regex.test(s)||!regex.test(r_)) return showRes('res-proj', '❌ Usa DD/MM/YYYY');
-      if (parseFecha(r_) < parseFecha(s)) return showRes('res-proj', '❌ Retorno debe ser posterior');
-      const dn = diasEntre(s,r_), tot = cfg.dias_12m + dn;
-      let c,e,m;
-      if(tot<150){c='green';e='🟢 Sin riesgo';m='NO afecta residencia'}
-      else if(tot<183){c='orange';e='🟡 Posible riesgo';m='Acumularías '+tot+' días'}
-      else{c='red';e='🔴 En riesgo';m='⚠️ Alcanzarías '+tot+' días. Riesgo fiscal'}
-      showRes('res-proj', '<strong>Proyección:</strong><br>• Días viaje: '+dn+'<br>• Total (12m): '+tot+'/183<br><span class="badge badge-'+c+'">'+e+'</span> '+m);
+
+    // Renderizar formularios de proyección (hasta 3)
+    let projectionCount = 1;
+    function renderProjectionForms() {
+      const container = document.getElementById('projections-container');
+      container.innerHTML = '';
+      for (let i = 1; i <= Math.min(projectionCount, 3); i++) {
+        container.innerHTML += `
+          <div style="border:1px solid #dee2e6;border-radius:8px;padding:10px;margin-bottom:8px;background:#fff">
+            <div style="font-weight:600;margin-bottom:6px">Itinerario #${i}</div>
+            <div class="range-grid">
+              <div class="form-group"><label>Salida</label><input type="text" id="proj-s-${i}" placeholder="DD/MM/YYYY"></div>
+              <div class="form-group"><label>Retorno</label><input type="text" id="proj-r-${i}" placeholder="DD/MM/YYYY"></div>
+            </div>
+            <div class="form-group"><label>País</label><input type="text" id="proj-pais-${i}" placeholder="Ej: España"></div>
+            <button class="btn btn-outline" onclick="removeProjection(${i})" style="padding:6px 10px;font-size:0.8rem">🗑️ Eliminar</button>
+          </div>`;
+      }
+    }
+    window.removeProjection = function(idx) {
+      if (projectionCount > 1) { projectionCount--; renderProjectionForms(); }
     };
-    document.getElementById('btn-calc-rango').onclick = function() {
-      const i = document.getElementById('rng-ini').value, f = document.getElementById('rng-fin').value;
-      if (!regex.test(i)||!regex.test(f)) return showRes('res-rango', '❌ Usa DD/MM/YYYY');
-      const rStart=parseFecha(i), rEnd=parseFecha(f);
-      if(rEnd<rStart) return showRes('res-rango', '❌ Fin debe ser posterior a Inicio');
-      const diffDias=Math.ceil((rEnd-rStart)/864e5);
-      if(diffDias>365) return showRes('res-rango', '❌ Máximo 12 meses (365 días)');
-      const mensual={}; let total=0;
-      cfg.viajes.forEach(v=>{
-        const vS=new Date(v.salida_str), vE=new Date(v.entrada_str);
-        const effS=new Date(vS.getTime()+864e5), effE=new Date(vE.getTime()-864e5);
-        if(effS>effE) return;
-        const ovS=new Date(Math.max(effS,rStart)), ovE=new Date(Math.min(effE,rEnd));
-        if(ovS<=ovE){ let cur=new Date(ovS); while(cur<=ovE){ const key=cur.getFullYear()+'-'+String(cur.getMonth()+1).padStart(2,'0'); mensual[key]=(mensual[key]||0)+1; total++; cur.setDate(cur.getDate()+1); } }
+    document.getElementById('btn-add-projection').onclick = function() {
+      if (projectionCount < 3) { projectionCount++; renderProjectionForms(); }
+      else { alert('Máximo 3 proyecciones permitidas'); }
+    };
+
+    // Guardar proyecciones (solo estado P)
+    document.getElementById('btn-save-proj').onclick = async function() {
+      const btn = this;
+      const res = 'res-proj';
+      btn.classList.add('loading'); btn.textContent = '⏳...';
+      
+      let successCount = 0;
+      for (let i = 1; i <= projectionCount; i++) {
+        const s = document.getElementById(`proj-s-${i}`)?.value;
+        const r = document.getElementById(`proj-r-${i}`)?.value;
+        const pais = document.getElementById(`proj-pais-${i}`)?.value;
+        if (!s || !r || !pais) continue;
+        if (!regex.test(s)||!regex.test(r)) { showRes(res, '❌ Usa formato DD/MM/YYYY'); btn.classList.remove('loading'); btn.textContent = '💾 Guardar proyecciones'; return; }
+        if (parseFecha(r) < parseFecha(s)) { showRes(res, '❌ Retorno debe ser posterior'); btn.classList.remove('loading'); btn.textContent = '💾 Guardar proyecciones'; return; }
+        
+        try {
+          // Guardar SALIDA proyectada
+          await fetch(cfg.app_url, { method: 'POST', mode: 'cors', headers: {'Content-Type':'text/plain'}, body: JSON.stringify({tipo:'SALIDA', fecha:s, pais:pais, estado:'P'}) });
+          // Guardar ENTRADA proyectada
+          await fetch(cfg.app_url, { method: 'POST', mode: 'cors', headers: {'Content-Type':'text/plain'}, body: JSON.stringify({tipo:'ENTRADA', fecha:r, pais:pais, estado:'P'}) });
+          successCount++;
+        } catch(e) { /* continuar con el siguiente */ }
+      }
+      
+      if (successCount > 0) {
+        showRes(res, `✅ ${successCount} proyección(es) guardada(s). Refresca la página para ver actualizaciones.`);
+        // Resetear formulario
+        projectionCount = 1; renderProjectionForms();
+        document.getElementById('proj-s-1').value = ''; document.getElementById('proj-r-1').value = ''; document.getElementById('proj-pais-1').value = '';
+      } else {
+        showRes(res, '❌ No se pudieron guardar las proyecciones. Verifica la conexión.');
+      }
+      btn.classList.remove('loading'); btn.textContent = '💾 Guardar proyecciones';
+    };
+
+    // Renderizar tabla de viajes con filtro
+    window.filtrarTabla = function(estadoFilter) {
+      renderTablaViajes(estadoFilter);
+    };
+    
+    function renderTablaViajes(filter) {
+      const tbody = document.getElementById('tabla-body');
+      tbody.innerHTML = '';
+      const viajesFiltrados = filter === 'todos' ? cfg.viajes : cfg.viajes.filter(v => v.estado === filter);
+      
+      if (viajesFiltrados.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#6c757d;padding:20px">Sin viajes para mostrar</td></tr>';
+        return;
+      }
+      
+      viajesFiltrados.slice().reverse().forEach((v, idx) => {
+        const acciones = v.estado === 'P' ? 
+          `<button class="btn btn-outline" style="padding:4px 8px;font-size:0.75rem" onclick="editarProyeccion('${v.salida_str}','${v.entrada_str}','${v.pais}')">✏️</button>` : 
+          `<span style="font-size:0.75rem;color:#6c757d">Solo lectura</span>`;
+        
+        tbody.innerHTML += `
+          <tr>
+            <td>${v.salida_str.split('-').reverse().join('/')}</td>
+            <td>${v.entrada_str.split('-').reverse().join('/')}</td>
+            <td>${v.pais}</td>
+            <td style="text-align:right">${v.dias}</td>
+            <td><span class="badge badge-${v.estado}">${v.estado}</span></td>
+            <td>${acciones}</td>
+          </tr>`;
       });
-      let tabla='<div class="table-responsive"><table><thead><tr><th>Mes</th><th style="text-align:right">Días</th></tr></thead><tbody>';
-      Object.entries(mensual).sort().forEach(([m,d])=>tabla+='<tr><td>'+formatoMes(m)+'</td><td style="text-align:right">'+d+'</td></tr>');
-      tabla+='<tr class="total-row"><td>TOTAL</td><td style="text-align:right">'+total+'</td></tr></tbody></table></div>';
-      let c,e,m;
-      if(total<150){c='green';e='🟢 Sin riesgo';m='Acumulado seguro.'}
-      else if(total<183){c='orange';e='🟡 Posible riesgo';m='Acumulaste '+total+' días.'}
-      else{c='red';e='🔴 En riesgo';m='⚠️ Superaste '+total+' días.'}
-      showRes('res-rango', '<strong>📊 Rango: '+i+' → '+f+'</strong><br>• Días periodo: '+diffDias+'<br><br>'+tabla+'<br><span class="badge badge-'+c+'">'+e+'</span> '+m);
+    }
+    
+    window.editarProyeccion = function(salida, entrada, pais) {
+      // Pre-llenar el primer formulario de proyección
+      document.getElementById('proj-s-1').value = salida.split('-').reverse().join('/');
+      document.getElementById('proj-r-1').value = entrada.split('-').reverse().join('/');
+      document.getElementById('proj-pais-1').value = pais;
+      toggle('form-proj');
+      alert('ℹ️ Para editar una proyección: elimina la existente y agrega la nueva con los datos corregidos.');
     };
+
+    // ✅ GRÁFICO APILADO MULTICOLOR
     const ctx = document.getElementById('chart');
     if (!cfg.chart_labels || cfg.chart_labels.length === 0) {
       ctx.parentElement.innerHTML = '<p style="text-align:center;color:#6c757d;padding:40px">Sin datos históricos para graficar.</p>';
     } else {
-      new Chart(ctx, { type: 'bar', data: { labels: cfg.chart_labels, datasets: [{ label: 'Días fuera', data: cfg.chart_values, backgroundColor: 'rgba(13,110,253,0.6)', borderColor: '#0d6efd', borderWidth: 1, borderRadius: 4, hoverBackgroundColor: 'rgba(13,110,253,0.9)' }] }, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 0 }, plugins: { legend: { display: false }, tooltip: { enabled: true, backgroundColor: 'rgba(0,0,0,0.85)', titleFont: { size: 11 }, bodyFont: { size: 10 }, padding: 6 } }, scales: { x: { ticks: { maxRotation: 45, minRotation: 45, autoSkip: true, maxTicksLimit: 12, font: { size: 9 } }, grid: { display: false } }, y: { beginAtZero: true, ticks: { stepSize: 10, font: { size: 9 } }, grid: { color: 'rgba(0,0,0,0.05)' } } } } });
-      console.log('📈 Gráfica renderizada | Valores:', cfg.chart_values.slice(0,5));
+      new Chart(ctx, {
+        type: 'bar',
+         {
+          labels: cfg.chart_labels,
+          datasets: [
+            { label: 'Migraciones',  cfg.chart_M, backgroundColor: '#3b82f6', stack: 'Stack 0' },
+            { label: 'Registro',  cfg.chart_R, backgroundColor: '#22c55e', stack: 'Stack 0' },
+            { label: 'Proyectado',  cfg.chart_P, backgroundColor: '#f59e0b', stack: 'Stack 0' }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 0 },
+          plugins: { 
+            legend: { display: false }, 
+            tooltip: { 
+              enabled: true, 
+              backgroundColor: 'rgba(0,0,0,0.85)', 
+              titleFont: { size: 11 }, 
+              bodyFont: { size: 10 }, 
+              padding: 6,
+              callbacks: {
+                label: function(context) {
+                  const label = context.dataset.label || '';
+                  const value = context.parsed.y || 0;
+                  return `${label}: ${value} días`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: { 
+              stacked: true,
+              ticks: { maxRotation: 45, minRotation: 45, autoSkip: true, maxTicksLimit: 12, font: { size: 9 } }, 
+              grid: { display: false }
+            },
+            y: { 
+              stacked: true,
+              beginAtZero: true, 
+              ticks: { stepSize: 10, font: { size: 9 } }, 
+              grid: { color: 'rgba(0,0,0,0.05)' },
+              title: { display: true, text: 'Días fuera', font: { size: 10 } }
+            }
+          }
+        }
+      });
+      console.log('📈 Gráfico apilado renderizado');
     }
-  } catch(err) { console.error('❌ Error JS:', err); }
+  } catch(err) {
+    console.error('❌ Error JS:', err);
+  }
 });
 </script>
 </body>
 </html>"""
 
-# 🔹 GENERAR ARCHIVO FINAL
+# =============================================================================
+# GENERAR ARCHIVO FINAL
+# =============================================================================
 html_content = Template(html_template).render(
-    dias_12m=dias_12m, c12=c12, e12=e12, m12=m12,
-    dias_anio=dias_anio, ca=ca, ea=ea, ma=ma, anio_act=anio_act,
-    anomalias=anomalias, ranking=ranking_data,
+    dias_12m=total_12m, dias_por_estado_12m=dias_por_estado_12m,
+    dias_anio=total_anio, dias_por_estado_anio=dias_por_estado_anio,
+    anio_act=hoy.year,
+    c12=c12, e12=e12, m12=m12,
+    ca=ca, ea=ea, ma=ma,
+    anomalias=anomalias,
+    ranking_data=ranking_data,
+    viajes=viajes_json,
+    chart_labels=chart_labels,
+    chart_M=chart_M,
+    chart_R=chart_R,
+    chart_P=chart_P,
+    estados_config=ESTADOS,
+    limite_sunat=LIMITE_SUNAT,
     config_json=config_json
 )
 
 with open("index.html", "w", encoding="utf-8") as f:
     f.write(html_content)
-print("✅ index.html generado exitosamente para GitHub Pages.")
+print(f"✅ index.html generado | Total días (12m): {total_12m} | Proyecciones: {dias_por_estado_12m['P']}")
