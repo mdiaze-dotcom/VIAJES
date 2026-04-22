@@ -65,7 +65,7 @@ def eventos_a_viajes(df):
     return pd.DataFrame(viajes), anomalias
 
 def contar_dias_por_estado(vdf, fecha_ref, dias=365):
-    """Retorna dict {estado: total_días} para ventana móvil."""
+    """Calcula días por estado M/R/P en ventana móvil."""
     result = {"M": 0, "R": 0, "P": 0}
     if vdf.empty: return result
     end = fecha_ref
@@ -77,12 +77,11 @@ def contar_dias_por_estado(vdf, fecha_ref, dias=365):
         if eff_s > eff_e: continue
         ov_s, ov_e = max(eff_s, start), min(eff_e, end)
         if ov_s <= ov_e:
-            dias_contados = (ov_e - ov_s).days + 1
-            result[v["estado"]] = result.get(v["estado"], 0) + dias_contados
+            result[v["estado"]] = result.get(v["estado"], 0) + (ov_e - ov_s).days + 1
     return result
 
 def calcular_grafica_mensual(vdf):
-    """Retorna diccionario por mes con desglose por estado M/R/P usando regla SUNAT"""
+    """Retorna desglose mensual por estado M/R/P usando regla SUNAT"""
     datos = defaultdict(lambda: {"M": 0, "R": 0, "P": 0})
     if vdf.empty: return datos
     
@@ -90,7 +89,6 @@ def calcular_grafica_mensual(vdf):
         eff_s = v["salida"] + timedelta(days=1)
         eff_e = v["entrada"] - timedelta(days=1)
         if eff_s > eff_e: continue
-        
         cur = eff_s
         while cur <= eff_e:
             if cur.year >= 2000:
@@ -340,8 +338,9 @@ def calcular_grafica_mensual(vdf):
                 datos[key][v["estado"]] += 1
             cur += timedelta(days=1)
     return dict(sorted(datos.items()))
+</script>
 </body>
-</html>"""
+</html>"""  # ← IMPORTANTE: estas 3 comillas deben estar solas, sin espacios extra
 # =============================================================================
 # GENERAR ARCHIVO FINAL
 # =============================================================================
