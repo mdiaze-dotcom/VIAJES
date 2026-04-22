@@ -114,7 +114,15 @@ for k in sorted(grafica):
 ranking = {}
 for est in ["M","R","P"]:
     fil = viajes_df[(viajes_df["estado"]==est) & (~viajes_df["en_curso"])]
-    ranking[est] = [{"pais":p,"dias":d,"iso":PAIS_ISO.get(p.lower().strip(),"xx")} for p,d in Counter(fil["pais"]).most_common(5)]
+    # ✅ Sumar DÍAS por país, no contar viajes
+    dias_por_pais = defaultdict(int)
+    for _, r in fil.iterrows():
+        dias_por_pais[r["pais"]] += r["dias"]
+    # Ordenar descendente y tomar top 5
+    ranking[est] = [
+        {"pais":p, "dias":d, "iso": PAIS_ISO.get(p.lower().strip(), "xx")} 
+        for p, d in sorted(dias_por_pais.items(), key=lambda x: x[1], reverse=True)[:5]
+    ]
 
 viajes_js = []
 if not viajes_df.empty:
