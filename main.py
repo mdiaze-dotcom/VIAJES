@@ -191,178 +191,239 @@ html_template = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>Control SUNAT - Miguel</title>
+<title>Control SUNAT - Acceso Seguro</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
 <style>
+  /* ESTILOS GENERALES */
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:12px;background:#f8f9fa;color:#111;line-height:1.4}
+  body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:0;background:#f8f9fa;color:#111;line-height:1.4}
+  
+  /* ESTILOS DE PANTALLA DE LOGIN */
+  #login-screen{position:fixed;top:0;left:0;width:100%;height:100%;background:#0f172a;z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;overflow:hidden}
+  #bg-canvas{position:absolute;top:0;left:0;width:100%;height:100%}
+  .login-box{position:relative;background:rgba(255,255,255,0.95);backdrop-filter:blur(10px);padding:35px 30px;border-radius:16px;width:90%;max-width:320px;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,0.6);z-index:10000;border:1px solid rgba(255,255,255,0.2)}
+  .login-box h2{margin:0 0 20px;color:#0f172a;font-size:1.5rem;font-weight:700}
+  .login-box input{width:100%;padding:12px 15px;margin:8px 0 16px;border:2px solid #e2e8f0;border-radius:8px;font-size:1rem;transition:0.3s}
+  .login-box input:focus{border-color:#0d6efd;outline:none}
+  .login-box button{width:100%;padding:12px;background:#0d6efd;color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;transition:0.3s}
+  .login-box button:hover{background:#0b5ed7;transform:translateY(-1px)}
+  .error-msg{color:#dc3545;font-size:0.85rem;margin-top:10px;display:none}
+
+  /* ESTILOS DE LA APP (Ocultos inicialmente) */
+  #main-app{opacity:0;pointer-events:none;transition:opacity 0.6s ease-in-out;padding:12px}
+  #main-app.visible{opacity:1;pointer-events:auto}
+  
+  /* ESTILOS EXISTENTES DEL DASHBOARD */
   .card{background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,0.08)}
-  .status-green{border-left:5px solid #198754;padding-left:12px}
-  .status-orange{border-left:5px solid #fd7e14;padding-left:12px}
-  .status-red{border-left:5px solid #dc3545;padding-left:12px}
-  h1,h2,h3{margin:0 0 8px;font-weight:600} h1{font-size:1.25rem} h2{font-size:1.1rem} h3{font-size:1rem}
+  .status-green{border-left:5px solid #198754;padding-left:12px}.status-orange{border-left:5px solid #fd7e14;padding-left:12px}.status-red{border-left:5px solid #dc3545;padding-left:12px}
+  h1,h2,h3{margin:0 0 8px;font-weight:600}h1{font-size:1.25rem}h2{font-size:1.1rem}h3{font-size:1rem}
   .metric{font-size:1.8rem;font-weight:700;margin:4px 0 8px}
   .badge{display:inline-block;padding:4px 10px;border-radius:20px;font-size:0.8rem;font-weight:500;margin-right:6px}
-  .badge-green{background:#d1e7dd;color:#0f5132} .badge-orange{background:#fff3cd;color:#664d03} .badge-red{background:#f8d7da;color:#842029}
-  .badge-M{background:#3b82f6;color:#fff} .badge-R{background:#22c55e;color:#fff} .badge-P{background:#f59e0b;color:#000}
+  .badge-green{background:#d1e7dd;color:#0f5132}.badge-orange{background:#fff3cd;color:#664d03}.badge-red{background:#f8d7da;color:#842029}
+  .badge-M{background:#3b82f6;color:#fff}.badge-R{background:#22c55e;color:#fff}.badge-P{background:#f59e0b;color:#000}
   .alert{background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:10px;margin:8px 0;font-size:0.85rem;color:#664d03}
-  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px} @media(max-width:480px){.grid-2{grid-template-columns:1fr}}
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:480px){.grid-2{grid-template-columns:1fr}}
   .chart-wrap{position:relative;width:100%;height:240px;margin-top:8px;min-height:240px;background:#fafafa;border-radius:8px}
   canvas{display:block;width:100%!important;height:100%!important}
   .btn{display:inline-flex;align-items:center;gap:6px;background:#0d6efd;color:#fff;border:none;border-radius:8px;padding:10px 14px;font-size:0.9rem;cursor:pointer;margin:4px 2px}
-  .btn:hover{opacity:0.95} .btn:active{transform:scale(0.98)} .btn-outline{background:transparent;border:1px solid #0d6efd;color:#0d6efd}
-  .form-group{margin:10px 0} .form-group label{display:block;font-size:0.85rem;margin-bottom:4px;color:#495057}
+  .btn:hover{opacity:0.95}.btn:active{transform:scale(0.98)}.btn-outline{background:transparent;border:1px solid #0d6efd;color:#0d6efd}
+  .form-group{margin:10px 0}.form-group label{display:block;font-size:0.85rem;margin-bottom:4px;color:#495057}
   .form-group input,.form-group select{width:100%;padding:8px;border:1px solid #ced4da;border-radius:6px;font-size:0.9rem}
   .result-box{background:#f8f9fa;border-radius:8px;padding:10px;margin-top:10px;font-size:0.9rem}
-  .hidden{display:none} .loading{opacity:0.6;pointer-events:none}
-  .table-responsive{overflow-x:auto;margin-top:8px} table{width:100%;border-collapse:collapse;font-size:0.9rem}
-  th,td{padding:8px 10px;text-align:left;border-bottom:1px solid #eee} th{background:#f1f3f4;font-weight:600}
+  .hidden{display:none}.loading{opacity:0.6;pointer-events:none}
+  .table-responsive{overflow-x:auto;margin-top:8px}table{width:100%;border-collapse:collapse;font-size:0.9rem}
+  th,td{padding:8px 10px;text-align:left;border-bottom:1px solid #eee}th{background:#f1f3f4;font-weight:600}
   .ranking-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #eee}
   .ranking-flag{width:24px;height:16px;border-radius:3px;object-fit:cover;margin-right:10px;border:1px solid #eee}
   .footer{text-align:center;font-size:0.7rem;color:#6c757d;margin-top:16px}
-  .legend{display:flex;gap:12px;justify-content:center;margin:8px 0;font-size:0.8rem} .legend-item{display:flex;align-items:center;gap:4px}
+  .legend{display:flex;gap:12px;justify-content:center;margin:8px 0;font-size:0.8rem}.legend-item{display:flex;align-items:center;gap:4px}
   .dot{width:12px;height:12px;border-radius:50%}
 </style>
 </head>
 <body>
 
-<div class="card status-{{c12}}">
-  <h1>🇵🇪 Estado Residencia Fiscal</h1>
-  <div class="metric">{{e12}}</div>
-  <p style="margin:4px 0 0">{{m12}}</p>
-  <p style="margin:8px 0 0"><strong>Total últimos 12m:</strong> {{dias_12m}} / {{limite}} días</p>
-  <div style="font-size:0.85rem;color:#6c757d">🔵M:{{dias_por_estado_12m.M}}d | 🟢R:{{dias_por_estado_12m.R}}d | 🟡P:{{dias_por_estado_12m.P}}d</div>
-  {% if anomalias %}<div class="alert">⚠️ {{', '.join(anomalias[:3])}}{{'...' if anomalias|length>3 else ''}}</div>{% endif %}
-  {% if dias_12m>=limite %}
-  <div class="alert" style="background:#f8d7da;border-color:#dc3545;color:#842029">🔴 <strong>ALERTA:</strong> Superaste los {{limite}} días.</div>
-  {% elif dias_12m>=150 %}
-  <div class="alert">⚠️ <strong>Atención:</strong> {{dias_12m}}/{{limite}} días. Planifica.</div>
-  {% endif %}
+<!-- 🔐 PANTALLA DE LOGIN -->
+<div id="login-screen">
+  <canvas id="bg-canvas"></canvas>
+  <div class="login-box">
+    <h2>🔐 Acceso Seguro</h2>
+    <input type="text" id="user" placeholder="Usuario" value="admin">
+    <input type="password" id="pass" placeholder="Contraseña">
+    <button onclick="intentarLogin()">INGRESAR</button>
+    <p id="error-msg" class="error-msg">❌ Usuario o contraseña incorrectos</p>
+  </div>
 </div>
 
-<div class="grid-2">
+<!-- 📱 APLICACIÓN PRINCIPAL (Se muestra tras login exitoso) -->
+<div id="main-app">
   <div class="card status-{{c12}}">
-    <h3>📅 Últimos 12 meses</h3>
-    <div class="metric" style="font-size:1.6rem">{{dias_12m}} días</div>
-    <span class="badge badge-{{'green' if dias_12m<150 else 'orange' if dias_12m<183 else 'red'}}">{{e12}}</span>
+    <h1>🇵🇪 Estado Residencia Fiscal</h1>
+    <div class="metric">{{e12}}</div>
+    <p style="margin:4px 0 0">{{m12}}</p>
+    <p style="margin:8px 0 0"><strong>Total últimos 12m:</strong> {{dias_12m}} / {{limite}} días</p>
+    <div style="font-size:0.85rem;color:#6c757d">🔵M:{{dias_por_estado_12m.M}}d | 🟢R:{{dias_por_estado_12m.R}}d | 🟡P:{{dias_por_estado_12m.P}}d</div>
+    {% if anomalias %}<div class="alert">⚠️ {{', '.join(anomalias[:3])}}{{'...' if anomalias|length>3 else ''}}</div>{% endif %}
+    {% if dias_12m>=limite %}<div class="alert" style="background:#f8d7da;border-color:#dc3545;color:#842029">🔴 <strong>ALERTA:</strong> Superaste los {{limite}} días.</div>{% elif dias_12m>=150 %}<div class="alert">⚠️ <strong>Atención:</strong> {{dias_12m}}/{{limite}} días. Planifica.</div>{% endif %}
   </div>
-  <div class="card status-{{ca}}">
-    <h3>🗓️ Año {{anio_act}}</h3>
-    <div class="metric" style="font-size:1.6rem">{{dias_anio}} días</div>
-    <span class="badge badge-{{'green' if dias_anio<150 else 'orange' if dias_anio<183 else 'red'}}">{{ea}}</span>
-  </div>
-</div>
 
-<div class="card">
-  <h2>📈 Evolución mensual (M/R/P)</h2>
-  <div class="legend">
-    <div class="legend-item"><span class="dot" style="background:#3b82f6"></span> M: Migraciones</div>
-    <div class="legend-item"><span class="dot" style="background:#22c55e"></span> R: Registro</div>
-    <div class="legend-item"><span class="dot" style="background:#f59e0b"></span> P: Proyectado</div>
+  <div class="grid-2">
+    <div class="card status-{{c12}}"><h3>📅 Últimos 12 meses</h3><div class="metric" style="font-size:1.6rem">{{dias_12m}} días</div><span class="badge badge-{{'green' if dias_12m<150 else 'orange' if dias_12m<183 else 'red'}}">{{e12}}</span></div>
+    <div class="card status-{{ca}}"><h3>🗓️ Año {{anio_act}}</h3><div class="metric" style="font-size:1.6rem">{{dias_anio}} días</div><span class="badge badge-{{'green' if dias_anio<150 else 'orange' if dias_anio<183 else 'red'}}">{{ea}}</span></div>
   </div>
-  <div class="chart-wrap"><canvas id="chart"></canvas></div>
-</div>
 
-<div class="card">
-  <h2>🌍 Top países</h2>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px">
+  <div class="card">
+    <h2>📈 Evolución mensual (M/R/P)</h2>
+    <div class="legend"><div class="legend-item"><span class="dot" style="background:#3b82f6"></span>M</div><div class="legend-item"><span class="dot" style="background:#22c55e"></span>R</div><div class="legend-item"><span class="dot" style="background:#f59e0b"></span>P</div></div>
+    <div class="chart-wrap"><canvas id="chart"></canvas></div>
+  </div>
+
+  <div class="card"><h2>🌍 Top países</h2><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px">
     {% for est in ["M","R","P"] %}
-    <div style="background:#f8f9fa;border-radius:8px;padding:8px">
-      <strong class="badge badge-{{est}}">{{est}}</strong>
-      {% if ranking[est] %}
-        {% for r in ranking[est] %}
-        <div class="ranking-item">
-          <img src="https://flagcdn.com/w40/{{r.iso}}.png" class="ranking-flag" alt="{{r.pais}}" onerror="this.style.display='none'">
-          <span style="font-size:0.8rem">{{r.pais|title}}</span>
-          <span style="font-size:0.75rem;background:#e9ecef;padding:2px 6px;border-radius:4px">{{r.dias}}d</span>
-        </div>
-        {% endfor %}
-      {% else %}
-        <p style="font-size:0.75rem;color:#6c757d;margin:4px 0">-</p>
-      {% endif %}
+    <div style="background:#f8f9fa;border-radius:8px;padding:8px"><strong class="badge badge-{{est}}">{{est}}</strong>
+      {% if ranking[est] %}{% for r in ranking[est] %}
+        <div class="ranking-item"><img src="https://flagcdn.com/w40/{{r.iso}}.png" class="ranking-flag" onerror="this.style.display='none'"><span style="font-size:0.8rem">{{r.pais|title}}</span><span style="font-size:0.75rem;background:#e9ecef;padding:2px 6px;border-radius:4px">{{r.dias}}d</span></div>
+      {% endfor %}{% else %}<p style="font-size:0.75rem;color:#6c757d;margin:4px 0">-</p>{% endif %}
+    </div>{% endfor %}
+  </div></div>
+
+  <div class="card"><button id="btn-p" class="btn" style="background:#f59e0b;color:#000">✈️ Proyecciones (P)</button>
+    <div id="form-p" class="hidden" style="margin-top:12px"><p style="font-size:0.8rem;color:#6c757d;margin-bottom:8px">Máx 3 itinerarios. Solo estado P.</p>
+      <div id="cont-p"></div><button id="btn-add-p" class="btn btn-outline" style="margin:8px 0">+ Itinerario</button><button id="btn-save-p" class="btn" style="background:#22c55e">💾 Guardar</button><div id="res-p" class="result-box hidden"></div>
     </div>
-    {% endfor %}
   </div>
-</div>
 
-<div class="card">
-  <button id="btn-p" class="btn" style="background:#f59e0b;color:#000">✈️ Proyecciones (P)</button>
-  <div id="form-p" class="hidden" style="margin-top:12px">
-    <p style="font-size:0.8rem;color:#6c757d;margin-bottom:8px">Máx 3 itinerarios. Solo estado P.</p>
-    <div id="cont-p"></div>
-    <button id="btn-add-p" class="btn btn-outline" style="margin:8px 0">+ Itinerario</button>
-    <button id="btn-save-p" class="btn" style="background:#22c55e">💾 Guardar</button>
-    <div id="res-p" class="result-box hidden"></div>
+  <div class="card"><h2>📋 Historial</h2>
+    <div style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-outline" onclick="window.filtro('todos')" style="padding:6px 12px;font-size:0.8rem">Todos</button>
+      <button class="btn" style="padding:6px 12px;font-size:0.8rem;background:#3b82f6" onclick="window.filtro('M')">M</button>
+      <button class="btn" style="padding:6px 12px;font-size:0.8rem;background:#22c55e" onclick="window.filtro('R')">R</button>
+      <button class="btn" style="padding:6px 12px;font-size:0.8rem;background:#f59e0b;color:#000" onclick="window.filtro('P')">P</button>
+    </div>
+    <div class="table-responsive"><table><thead><tr><th>Salida</th><th>Retorno</th><th>País</th><th>Días</th><th>Estado</th></tr></thead><tbody id="tb"></tbody></table></div>
   </div>
-</div>
 
-<div class="card">
-  <h2>📋 Historial</h2>
-  <div style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap">
-    <button class="btn btn-outline" onclick="window.filtro('todos')" style="padding:6px 12px;font-size:0.8rem">Todos</button>
-    <button class="btn" style="padding:6px 12px;font-size:0.8rem;background:#3b82f6" onclick="window.filtro('M')">M</button>
-    <button class="btn" style="padding:6px 12px;font-size:0.8rem;background:#22c55e" onclick="window.filtro('R')">R</button>
-    <button class="btn" style="padding:6px 12px;font-size:0.8rem;background:#f59e0b;color:#000" onclick="window.filtro('P')">P</button>
-  </div>
-  <div class="table-responsive">
-    <table><thead><tr><th>Salida</th><th>Retorno</th><th>País</th><th>Días</th><th>Estado</th></tr></thead>
-    <tbody id="tb"></tbody></table>
-  </div>
+  <div class="footer">Cálculo según Art. 7° LIR. No sustituye asesoría.</div>
 </div>
-
-<div class="footer">Cálculo según Art. 7° LIR. No sustituye asesoría.</div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+// ==========================================
+// 🎬 ANIMACIÓN DE FONDO (VÉRTICES DINÁMICOS)
+// ==========================================
+const canvas = document.getElementById('bg-canvas');
+const ctx = canvas.getContext('2d');
+let particles = [];
+const particleCount = 60; // Cantidad de puntos
+
+function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+window.addEventListener('resize', resize);
+resize();
+
+class Particle {
+  constructor() {
+    this.x = Math.random() * canvas.width;
+    this.y = Math.random() * canvas.height;
+    this.vx = (Math.random() - 0.5) * 1.2;
+    this.vy = (Math.random() - 0.5) * 1.2;
+  }
+  update() {
+    this.x += this.vx; this.y += this.vy;
+    if(this.x < 0 || this.x > canvas.width) this.vx *= -1;
+    if(this.y < 0 || this.y > canvas.height) this.vy *= -1;
+  }
+  draw() {
+    ctx.fillStyle = 'rgba(59,130,246,0.6)'; // Color de los puntos
+    ctx.beginPath(); ctx.arc(this.x, this.y, 2, 0, Math.PI*2); ctx.fill();
+  }
+}
+
+for(let i=0; i<particleCount; i++) particles.push(new Particle());
+
+function animateBg() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  for(let i=0; i<particles.length; i++) {
+    particles[i].update(); particles[i].draw();
+    for(let j=i; j<particles.length; j++) {
+      const dx = particles[i].x - particles[j].x;
+      const dy = particles[i].y - particles[j].y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      if(dist < 130) {
+        ctx.strokeStyle = `rgba(147,197,253, ${0.5 - dist/260})`; // Líneas conectoras
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(particles[i].x, particles[i].y); ctx.lineTo(particles[j].x, particles[j].y); ctx.stroke();
+      }
+    }
+  }
+  requestAnimationFrame(animateBg);
+}
+animateBg();
+
+// ==========================================
+// 🔐 LÓGICA DE LOGIN
+// ==========================================
+function intentarLogin() {
+  const u = document.getElementById('user').value;
+  const p = document.getElementById('pass').value;
+  
+  // 🔑 VALIDACIÓN DE CREDENCIALES
+  if (u === 'admin' && p === 'admin') {
+    // Login exitoso
+    document.getElementById('login-screen').style.opacity = '0';
+    setTimeout(() => { document.getElementById('login-screen').style.display = 'none'; }, 500);
+    document.getElementById('main-app').classList.add('visible');
+    
+    // Inicializar componentes que necesitan DOM visible
+    iniciarApp(); 
+  } else {
+    // Login fallido
+    const err = document.getElementById('error-msg');
+    err.style.display = 'block';
+    document.getElementById('pass').value = '';
+    setTimeout(() => err.style.display = 'none', 3000);
+  }
+}
+// Permitir Enter para entrar
+document.getElementById('pass').addEventListener('keypress', function (e) { if (e.key === 'Enter') intentarLogin(); });
+
+// ==========================================
+// ⚙️ INICIALIZACIÓN DE LA APP (TRAS LOGIN)
+// ==========================================
+function iniciarApp() {
   try {
-    // Cargar configuración inyectada desde Python
     const C = {{ config_json | safe }};
-    console.log('✅ Datos cargados | Viajes:', C.viajes.length, '| Meses:', C.lbl.length);
+    console.log('✅ App Iniciada | Viajes:', C.viajes.length);
 
     // Helpers
     const parseFecha = s => { const p=s?.trim().split('/')||[]; return new Date(+p[2],+p[1]-1,+p[0]); };
     const regex = /^\\d{1,2}\\/\\d{1,2}\\/\\d{4}$/;
     const showRes = (id, html) => { const e=document.getElementById(id); if(e){e.innerHTML=html; e.classList.remove('hidden');} };
 
-    // 1. TABLA DE HISTORIAL
-    window.filtro = function(f) {
+    // 1. TABLA
+    window.filtro = f => {
       const t = document.getElementById('tb'); if(!t) return;
       t.innerHTML = '';
-      const d = f === 'todos' ? C.viajes : C.viajes.filter(v => v.estado === f);
-      if(!d.length) { t.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:#6c757d">Sin datos</td></tr>'; return; }
+      const d = f==='todos' ? C.viajes : C.viajes.filter(v=>v.estado===f);
+      if(!d.length){ t.innerHTML='<tr><td colspan="5" style="text-align:center;padding:20px;color:#6c757d">Sin datos</td></tr>'; return; }
       d.slice().reverse().forEach(v => {
-        const s = v.salida_str.split('-').reverse().join('/');
-        const e = v.entrada_str.split('-').reverse().join('/');
-        t.innerHTML += `<tr><td>${s}</td><td>${e}</td><td>${v.pais}</td><td style="text-align:right">${v.dias}</td><td><span class="badge badge-${v.estado}">${v.estado}</span></td></tr>`;
+        t.innerHTML += `<tr><td>${v.salida_str.split('-').reverse().join('/')}</td><td>${v.entrada_str.split('-').reverse().join('/')}</td><td>${v.pais}</td><td style="text-align:right">${v.dias}</td><td><span class="badge badge-${v.estado}">${v.estado}</span></td></tr>`;
       });
     };
     window.filtro('todos');
 
-    // 2. GRÁFICO DE LÍNEAS (M/R/P)
-    const ctx = document.getElementById('chart');
-    if (ctx && C.lbl && C.lbl.length > 0) {
-      new Chart(ctx, {
+    // 2. GRÁFICO DE LÍNEAS
+    const ctxChart = document.getElementById('chart');
+    if (ctxChart && C.lbl && C.lbl.length > 0) {
+      new Chart(ctxChart, {
         type: 'line',
-        data: {
+         {
           labels: C.lbl,
           datasets: [
-            { label: 'Migraciones', data: C.vM, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.15)', tension: 0.3, fill: true },
-            { label: 'Registro', data: C.vR, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.15)', tension: 0.3, fill: true },
-            { label: 'Proyectado', data: C.vP, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.15)', tension: 0.3, fill: true }
+            { label: 'Migraciones',  C.vM, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', tension: 0.3, fill: true },
+            { label: 'Registro',  C.vR, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.1)', tension: 0.3, fill: true },
+            { label: 'Proyectado', data: C.vP, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', tension: 0.3, fill: true }
           ]
         },
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(0,0,0,0.85)', titleFont: { size: 11 }, bodyFont: { size: 10 }, padding: 8 } },
-          scales: {
-            x: { ticks: { maxRotation: 45, autoSkip: true, maxTicksLimit: 10, font: { size: 9 } }, grid: { display: false } },
-            y: { beginAtZero: true, ticks: { stepSize: 5, font: { size: 9 } }, grid: { color: 'rgba(0,0,0,0.05)' } }
-          }
-        }
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(0,0,0,0.85)', titleFont: { size: 11 }, bodyFont: { size: 10 }, padding: 8 } }, scales: { x: { ticks: { maxRotation: 45, autoSkip: true, maxTicksLimit: 10, font: { size: 9 } }, grid: { display: false } }, y: { beginAtZero: true, ticks: { stepSize: 5, font: { size: 9 } }, grid: { color: 'rgba(0,0,0,0.05)' } } } }
       });
-      console.log('📈 Gráfico renderizado');
-    } else if (ctx) {
-      ctx.parentElement.innerHTML = '<p style="text-align:center;padding:30px;color:#6c757d">📊 Sin datos históricos</p>';
     }
 
     // 3. PROYECCIONES
@@ -371,46 +432,33 @@ document.addEventListener('DOMContentLoaded', function() {
       const c = document.getElementById('cont-p'); if(!c) return;
       c.innerHTML = '';
       for(let i=1; i<=Math.min(pc,3); i++) {
-        c.innerHTML += `
-          <div style="border:1px solid #dee2e6;border-radius:8px;padding:10px;margin-bottom:8px;background:#fff">
-            <div style="font-weight:600;margin-bottom:6px">Itinerario #${i}</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-              <div class="form-group"><label>Salida</label><input id="ps${i}" placeholder="DD/MM/YYYY"></div>
-              <div class="form-group"><label>Retorno</label><input id="pr${i}" placeholder="DD/MM/YYYY"></div>
-            </div>
-            <div class="form-group"><label>País</label><input id="pp${i}" placeholder="Ej: España"></div>
-            <button class="btn btn-outline" onclick="if(pc>1){pc--;window.renderProy()}" style="padding:6px 10px;font-size:0.8rem">🗑️ Quitar</button>
-          </div>`;
+        c.innerHTML += `<div style="border:1px solid #dee2e6;border-radius:8px;padding:10px;margin-bottom:8px;background:#fff"><div style="font-weight:600;margin-bottom:6px">Itinerario #${i}</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div class="form-group"><label>Salida</label><input id="ps${i}" placeholder="DD/MM/YYYY"></div><div class="form-group"><label>Retorno</label><input id="pr${i}" placeholder="DD/MM/YYYY"></div></div><div class="form-group"><label>País</label><input id="pp${i}" placeholder="Ej: España"></div><button class="btn btn-outline" onclick="if(pc>1){pc--;window.renderProy()}" style="padding:6px 10px;font-size:0.8rem">🗑️ Quitar</button></div>`;
       }
     };
-    
-    document.getElementById('btn-p').onclick = () => {
-      const f = document.getElementById('form-p');
-      if(f.classList.toggle('hidden') === false) window.renderProy();
-    };
+    document.getElementById('btn-p').onclick = () => { const f=document.getElementById('form-p'); if(f.classList.toggle('hidden')===false) window.renderProy(); };
     document.getElementById('btn-add-p').onclick = () => { if(pc<3){pc++;window.renderProy();} };
     document.getElementById('btn-save-p').onclick = async function() {
       const b=this, r='res-p'; b.classList.add('loading'); b.textContent='⏳...'; let ok=0;
       for(let i=1;i<=pc;i++){
         const s=document.getElementById(`ps${i}`)?.value, e=document.getElementById(`pr${i}`)?.value, p=document.getElementById(`pp${i}`)?.value;
         if(!s||!e||!p) continue;
-        if(!regex.test(s)||!regex.test(e)) { showRes(r,'❌ Formato DD/MM/YYYY'); b.classList.remove('loading'); b.textContent='💾 Guardar'; return; }
-        if(parseFecha(e)<parseFecha(s)) { showRes(r,'❌ Retorno debe ser posterior'); b.classList.remove('loading'); b.textContent='💾 Guardar'; return; }
+        if(!regex.test(s)||!regex.test(e)){ showRes(r,'❌ Formato DD/MM/YYYY'); b.classList.remove('loading'); b.textContent='💾 Guardar'; return; }
+        if(parseFecha(e)<parseFecha(s)){ showRes(r,'❌ Retorno > Salida'); b.classList.remove('loading'); b.textContent='💾 Guardar'; return; }
         try {
-          await fetch(C.app_url, {method:'POST', headers:{'Content-Type':'text/plain'}, body:JSON.stringify({tipo:'SALIDA',fecha:s,pais:p,estado:'P'})});
-          await fetch(C.app_url, {method:'POST', headers:{'Content-Type':'text/plain'}, body:JSON.stringify({tipo:'ENTRADA',fecha:e,pais:p,estado:'P'})});
+          await fetch(C.app_url,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({tipo:'SALIDA',fecha:s,pais:p,estado:'P'})});
+          await fetch(C.app_url,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({tipo:'ENTRADA',fecha:e,pais:p,estado:'P'})});
           ok++;
-        } catch(x) {}
+        } catch(x){}
       }
-      showRes(r, ok>0?`✅ ${ok} guardada(s). Refresca la página.`:'❌ Error al guardar.');
+      showRes(r, ok>0?`✅ ${ok} guardada(s). Refresca.`:'❌ Error.');
       b.classList.remove('loading'); b.textContent='💾 Guardar';
       if(ok>0){pc=1; window.renderProy();}
     };
+    // Cargar proyecciones iniciales
+    window.renderProy();
 
-  } catch(err) {
-    console.error('❌ Error JS:', err);
-  }
-});
+  } catch(err) { console.error('❌ Error JS:', err); }
+}
 </script>
 </body>
 </html>"""
