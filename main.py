@@ -82,15 +82,14 @@ def contar_dias_por_estado(vdf, fecha_ref, dias=365):
     return result
 
 def calcular_grafica_mensual(vdf):
-    """Retorna {mes: {M:x, R:y, P:z}} usando EXACTAMENTE la misma regla SUNAT (-1 día)"""
+    """Retorna diccionario por mes con desglose por estado M/R/P usando regla SUNAT"""
     datos = defaultdict(lambda: {"M": 0, "R": 0, "P": 0})
     if vdf.empty: return datos
     
     for _, v in vdf.iterrows():
-        # Regla SUNAT estricta: excluye día de salida y día de retorno
         eff_s = v["salida"] + timedelta(days=1)
         eff_e = v["entrada"] - timedelta(days=1)
-        if eff_s > eff_e: continue  # Viaje de 0 o 1 día no cuenta
+        if eff_s > eff_e: continue
         
         cur = eff_s
         while cur <= eff_e:
