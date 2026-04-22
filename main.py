@@ -1,5 +1,5 @@
 # =============================================================================
-# CONTROL SUNAT - VERSIÓN FINAL VALIDADA (Login + Vértices + Registrar + Proyectar)
+# CONTROL SUNAT - VERSIÓN ESTABLE (Login + Animación + Dashboard)
 # =============================================================================
 import os, json, pandas as pd, gspread
 from jinja2 import Template
@@ -125,20 +125,19 @@ config_data = {
 config_str = json.dumps(config_data, ensure_ascii=False)
 
 # =============================================================================
-# PLANTILLA HTML (ESTRUCTURA VALIDADA: LOGIN + VÉRTICES + REGISTRAR + PROYECTAR)
+# PLANTILLA HTML (LOGIN + ANIMACIÓN + DASHBOARD - VALIDADA)
 # =============================================================================
 html_template = """<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Cache-Control" content="no-store">
 <title>Control SUNAT</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:system-ui,-apple-system,sans-serif;overflow-x:hidden;background:#0f172a}
-  #bg-canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:1}
+  #bg-canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0}
   #login-screen{position:fixed;top:0;left:0;width:100%;height:100%;z-index:10;display:flex;align-items:center;justify-content:center}
   #login-box{position:relative;z-index:11;background:rgba(255,255,255,0.95);backdrop-filter:blur(10px);padding:30px;border-radius:12px;width:90%;max-width:340px;text-align:center;box-shadow:0 20px 40px rgba(0,0,0,0.4)}
   #login-box h2{margin:0 0 20px;color:#0f172a;font-size:1.5rem}
@@ -153,10 +152,7 @@ html_template = """<!DOCTYPE html>
   .chart-wrap{position:relative;height:240px;margin-top:8px;background:#fafafa;border-radius:8px}
   canvas{display:block;width:100%!important;height:100%!important}
   .btn{background:#2563eb;color:#fff;border:none;border-radius:6px;padding:8px 12px;cursor:pointer;margin:4px 2px;font-size:0.9rem}
-  .btn:disabled{opacity:0.6;cursor:not-allowed}
   .btn-outline{background:transparent;border:1px solid #2563eb;color:#2563eb}
-  .btn-green{background:#22c55e;color:#fff;border:none;border-radius:6px;padding:8px 12px;cursor:pointer;margin:4px 2px;font-size:0.9rem}
-  .btn-red{background:#ef4444;color:#fff;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:0.8rem}
   table{width:100%;border-collapse:collapse;font-size:0.85rem;margin-top:8px}
   th,td{padding:8px;border-bottom:1px solid #eee;text-align:left}
   .badge-M{background:#3b82f6;color:#fff;padding:2px 6px;border-radius:4px;font-size:0.75rem}
@@ -165,10 +161,7 @@ html_template = """<!DOCTYPE html>
   .rank-box{background:#f8fafc;padding:10px;border-radius:6px;min-width:130px;margin:5px}
   .rank-item{display:flex;justify-content:space-between;align-items:center;font-size:0.8rem;margin:5px 0}
   .flag{width:20px;height:14px;border-radius:2px;object-fit:cover;margin-right:6px}
-  .form-group{margin:6px 0} .form-group label{display:block;font-size:0.8rem;margin-bottom:2px;color:#475569}
-  .form-group input{width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:4px;font-size:0.9rem}
-  .result-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px;margin-top:8px;font-size:0.85rem;display:none}
-  .itin-card{background:#f8fafc;padding:10px;border-radius:6px;margin-bottom:8px;border:1px solid #e2e8f0}
+  .footer{text-align:center;font-size:0.7rem;color:#6c757d;margin-top:16px}
 </style>
 </head>
 <body>
@@ -191,27 +184,6 @@ html_template = """<!DOCTYPE html>
     <div class="card"><h3>📅 Últimos 12m</h3><p id="d12" style="font-size:1.4rem;font-weight:600"></p></div>
     <div class="card"><h3>🗓️ Año Actual</h3><p id="da" style="font-size:1.4rem;font-weight:600"></p></div>
   </div>
-  
-  <div class="card"><h2>📝 Registrar Viaje (R)</h2>
-    <div class="grid-2">
-      <div class="form-group"><label>Salida</label><input id="reg-s" placeholder="DD/MM/YYYY"></div>
-      <div class="form-group"><label>Retorno</label><input id="reg-r" placeholder="DD/MM/YYYY"></div>
-    </div>
-    <div class="form-group"><label>País Destino</label><input id="reg-p" placeholder="Ej: España"></div>
-    <button class="btn" id="btn-reg" onclick="registrarViaje()">💾 Guardar Registro</button>
-    <div id="res-reg" class="result-box"></div>
-  </div>
-
-  <div class="card"><h2>✈️ Proyectar Viajes (P)</h2>
-    <p style="font-size:0.8rem;color:#64748b;margin-bottom:8px">Máx. 3 itinerarios. Calcula impacto y guarda como proyección.</p>
-    <div id="proj-list"></div>
-    <div style="display:flex;gap:8px;margin-top:8px">
-      <button class="btn btn-outline" onclick="addProjItin()">+ Agregar</button>
-      <button class="btn btn-green" id="btn-save-proj" onclick="calcularYGuardar()">📊 Calcular & Guardar</button>
-    </div>
-    <div id="res-proj" class="result-box"></div>
-  </div>
-
   <div class="card"><h2>📈 Evolución Mensual</h2><div class="chart-wrap"><canvas id="chart"></canvas></div></div>
   <div class="card"><h2>🌍 Top Países</h2><div id="rank" style="display:flex;gap:10px;overflow-x:auto;padding:5px 0"></div></div>
   <div class="card"><h2>📋 Historial</h2>
@@ -223,11 +195,12 @@ html_template = """<!DOCTYPE html>
     </div>
     <div id="hist"></div>
   </div>
+  <div class="footer">Cálculo según Art. 7° LIR. No sustituye asesoría tributaria.</div>
 </div>
 
 <script id="cfg" type="application/json">{{ config_str | safe }}</script>
 <script>
-// 1. ANIMACIÓN VÉRTICES (IIFE - Se ejecuta inmediatamente)
+// 1. ANIMACIÓN VÉRTICES (IIFE - Ejecución inmediata)
 (function(){
   var c=document.getElementById('bg-canvas'), x=c.getContext('2d');
   var pts=[], w, h;
@@ -254,9 +227,7 @@ html_template = """<!DOCTYPE html>
 
 // 2. LOGIN
 function checkLogin(){
-  var u=document.getElementById('user').value;
-  var p=document.getElementById('pass').value;
-  if(u==='admin'&&p==='admin'){
+  if(document.getElementById('user').value==='admin' && document.getElementById('pass').value==='admin'){
     document.getElementById('login-screen').style.display='none';
     document.getElementById('main-app').style.display='block';
     loadDashboard();
@@ -266,12 +237,7 @@ function checkLogin(){
 }
 document.getElementById('pass').addEventListener('keypress', function(e){if(e.key==='Enter')checkLogin();});
 
-// 3. HELPERS
-function isValidDate(s){return /^\\d{1,2}\\/\\d{1,2}\\/\\d{4}$/.test(s);}
-function parseDate(s){var p=s.split('/'); return new Date(+p[2], +p[1]-1, +p[0]);}
-function showRes(id, msg){var e=document.getElementById(id); e.innerHTML=msg; e.style.display='block';}
-
-// 4. DASHBOARD
+// 3. DASHBOARD
 function loadDashboard(){
   try {
     var raw = document.getElementById('cfg')?.textContent;
@@ -294,9 +260,7 @@ function loadDashboard(){
       var d=f==='todos'?window.C.viajes:window.C.viajes.filter(function(v){return v.estado===f;});
       var h='<table><tr><th>Salida</th><th>Retorno</th><th>País</th><th>Días</th><th>Estado</th></tr>';
       if(!d.length) h+='<tr><td colspan="5" style="text-align:center;padding:15px;color:#64748b">Sin registros</td></tr>';
-      else d.slice().reverse().forEach(function(v){
-        h+='<tr><td>'+v.salida_str.split('-').reverse().join('/')+'</td><td>'+v.entrada_str.split('-').reverse().join('/')+'</td><td>'+v.pais+'</td><td style="text-align:right">'+v.dias+'</td><td><span class="badge-'+v.estado+'">'+v.estado+'</span></td></tr>';
-      });
+      else d.slice().reverse().forEach(function(v){h+='<tr><td>'+v.salida_str.split('-').reverse().join('/')+'</td><td>'+v.entrada_str.split('-').reverse().join('/')+'</td><td>'+v.pais+'</td><td style="text-align:right">'+v.dias+'</td><td><span class="badge-'+v.estado+'">'+v.estado+'</span></td></tr>';});
       document.getElementById('hist').innerHTML=h+'</table>';
     };
     window.filt('todos');
@@ -306,79 +270,19 @@ function loadDashboard(){
       if(ctx && window.C.lbl.length>0){
         new Chart(ctx, {
           type: 'line',
-           {
+          data: {
             labels: window.C.lbl,
             datasets: [
-              { label: 'Migraciones',  window.C.vM, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.3 },
-              { label: 'Registro',  window.C.vR, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.1)', fill: true, tension: 0.3 },
-              { label: 'Proyectado',  window.C.vP, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: true, tension: 0.3 }
+              { label: 'Migraciones', data: window.C.vM, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.3 },
+              { label: 'Registro', data: window.C.vR, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.1)', fill: true, tension: 0.3 },
+              { label: 'Proyectado', data: window.C.vP, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: true, tension: 0.3 }
             ]
           },
           options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {display: false}}, scales: {x: {ticks: {maxRotation: 45, autoSkip: true, maxTicksLimit: 10}, grid: {display: false}}, y: {beginAtZero: true, ticks: {stepSize: 5}, grid: {color: '#e2e8f0'}}}}
         });
       }
     }, 100);
-  } catch(e){ console.error(e); alert('Error: '+e.message); }
-}
-
-// 5. REGISTRAR VIAJE (R)
-async function registrarViaje(){
-  var s=document.getElementById('reg-s').value.trim(), r=document.getElementById('reg-r').value.trim(), p=document.getElementById('reg-p').value.trim();
-  if(!isValidDate(s)||!isValidDate(r)||!p) return showRes('res-reg','❌ Completa todos los campos en formato DD/MM/YYYY');
-  if(parseDate(r)<parseDate(s)) return showRes('res-reg','❌ Retorno debe ser posterior a salida');
-  
-  var btn=document.getElementById('btn-reg'); btn.disabled=true; btn.textContent='⏳ Guardando...';
-  try {
-    await fetch(window.C.app_url, {method:'POST', mode:'cors', headers:{'Content-Type':'text/plain'}, body:JSON.stringify({tipo:'SALIDA',fecha:s,pais:p,estado:'R'})});
-    await fetch(window.C.app_url, {method:'POST', mode:'cors', headers:{'Content-Type':'text/plain'}, body:JSON.stringify({tipo:'ENTRADA',fecha:r,pais:p,estado:'R'})});
-    showRes('res-reg','✅ Registrado correctamente. <strong>Refresca la página</strong> para ver cambios.');
-    document.getElementById('reg-s').value=''; document.getElementById('reg-r').value=''; document.getElementById('reg-p').value='';
-  } catch(e) { showRes('res-reg','❌ Error de red o URL inválida'); }
-  finally { btn.disabled=false; btn.textContent='💾 Guardar Registro'; }
-}
-
-// 6. PROYECTAR VIAJES (P)
-var projCount = 0;
-function addProjItin(){
-  if(projCount>=3) return showRes('res-proj','⚠️ Máximo 3 itinerarios permitidos');
-  projCount++;
-  var list=document.getElementById('proj-list');
-  var div=document.createElement('div'); div.className='itin-card';
-  div.innerHTML='<div style="font-weight:600;margin-bottom:4px">Itinerario #'+projCount+'</div>'+
-    '<div class="grid-2"><div class="form-group"><input class="p-s" placeholder="Salida DD/MM/YYYY"></div><div class="form-group"><input class="p-r" placeholder="Retorno DD/MM/YYYY"></div></div>'+
-    '<div class="form-group"><input class="p-p" placeholder="País destino"></div>'+
-    '<button class="btn-red" onclick="removeProjItin(this)">🗑️ Quitar</button>';
-  list.appendChild(div);
-}
-function removeProjItin(btn){btn.parentElement.remove(); projCount--;}
-
-async function calcularYGuardar(){
-  var items=document.querySelectorAll('.itin-card');
-  if(items.length===0) return showRes('res-proj','⚠️ Agrega al menos un itinerario');
-  
-  var totalProj=0, itinerarios=[];
-  for(var i=0;i<items.length;i++){
-    var s=items[i].querySelector('.p-s').value.trim(), r=items[i].querySelector('.p-r').value.trim(), p=items[i].querySelector('.p-p').value.trim();
-    if(!isValidDate(s)||!isValidDate(r)||!p) return showRes('res-proj','❌ Completa correctamente todos los campos');
-    if(parseDate(r)<parseDate(s)) return showRes('res-proj','❌ Retorno debe ser posterior a salida');
-    var dias=Math.max(0, Math.floor((parseDate(r)-parseDate(s))/864e5) - 1);
-    totalProj+=dias; itinerarios.push({s:s,r:r,p:p});
-  }
-  
-  var newTotal=window.C.dias_12m + totalProj;
-  var status=newTotal<150?'🟢 Sin riesgo':newTotal<183?'🟡 Posible riesgo':'🔴 En riesgo (>183d)';
-  
-  var btn=document.getElementById('btn-save-proj'); btn.disabled=true; btn.textContent='⏳ Guardando...';
-  try {
-    for(var j=0;j<itinerarios.length;j++){
-      var it=itinerarios[j];
-      await fetch(window.C.app_url, {method:'POST', mode:'cors', headers:{'Content-Type':'text/plain'}, body:JSON.stringify({tipo:'SALIDA',fecha:it.s,pais:it.p,estado:'P'})});
-      await fetch(window.C.app_url, {method:'POST', mode:'cors', headers:{'Content-Type':'text/plain'}, body:JSON.stringify({tipo:'ENTRADA',fecha:it.r,pais:it.p,estado:'P'})});
-    }
-    showRes('res-proj','<strong>✅ Proyección guardada.</strong><br>Días proyectados: '+totalProj+'<br>Total estimado: '+newTotal+'/183<br>'+status+'<br><br><em>Refresca la página.</em>');
-    document.getElementById('proj-list').innerHTML=''; projCount=0;
-  } catch(e) { showRes('res-proj','❌ Error al guardar proyección'); }
-  finally { btn.disabled=false; btn.textContent='📊 Calcular & Guardar'; }
+  } catch(e){ console.error(e); alert('Error al cargar: '+e.message); }
 }
 </script>
 </body>
@@ -396,4 +300,4 @@ html_final = Template(html_template).render(
 
 with open("index.html", "w", encoding="utf-8") as f:
     f.write(html_final)
-print("✅ index.html generado | Login + Vértices + Registrar(R) + Proyectar(P) | Credenciales: admin/admin")
+print("✅ index.html generado | Login + Animación + Dashboard base | Credenciales: admin/admin")
