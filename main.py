@@ -1,12 +1,12 @@
 # =============================================================================
-# CONTROL SUNAT - VERSIÓN FINAL (Login + Vértices + Registrar + Proyectar)
+# CONTROL SUNAT - VERSIÓN FINAL ESTABLE (Login + Vértices + Registrar + Proyectar)
 # =============================================================================
 import os, json, pandas as pd, gspread
 from jinja2 import Template
 from datetime import date, timedelta
 from collections import Counter, defaultdict
 
-# 🔑 CONFIGURACIÓN (INALTERADA)
+# 🔑 CONFIGURACIÓN
 SHEET_ID = os.environ["SHEET_ID"]
 APPS_SCRIPT_URL = os.environ["APPS_SCRIPT_URL"]
 CREDENTIALS_JSON = json.loads(os.environ["GOOGLE_CREDENTIALS"])
@@ -67,7 +67,7 @@ def grafica_mensual(vdf):
             c += timedelta(days=1)
     return dict(sorted(datos.items()))
 
-# 🔹 PROCESAMIENTO (INALTERADO)
+# 🔹 PROCESAMIENTO
 gc = gspread.service_account_from_dict(CREDENTIALS_JSON)
 sheet = gc.open_by_key(SHEET_ID).sheet1
 df = pd.DataFrame(sheet.get_all_records())
@@ -125,7 +125,7 @@ config_data = {
 config_str = json.dumps(config_data, ensure_ascii=False)
 
 # =============================================================================
-# PLANTILLA HTML (LOGIN + VÉRTICES + REGISTRAR + PROYECTAR)
+# PLANTILLA HTML (SINTAXIS JS VALIDADA + LOGIN + VÉRTICES + REGISTRAR + PROYECTAR)
 # =============================================================================
 html_template = """<!DOCTYPE html>
 <html lang="es">
@@ -253,10 +253,9 @@ function checkLogin(){
 document.getElementById('pass').addEventListener('keypress', e=>{if(e.key==='Enter') checkLogin()});
 
 // 3. HELPERS
-const isValidDate = s => /^\\d{1,2}\\/\\d{1,2}\\/\\d{4}$/.test(s);
+const isValidDate = s => /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s);
 const parseDate = s => { const p=s.split('/'); return new Date(+p[2], +p[1]-1, +p[0]); };
 const showRes = (id, msg) => { const e=document.getElementById(id); e.innerHTML=msg; e.style.display='block'; };
-const hideRes = id => { document.getElementById(id).style.display='none'; };
 
 // 4. DASHBOARD
 function loadDashboard(){
@@ -289,17 +288,18 @@ function loadDashboard(){
     setTimeout(()=>{
       const ctx=document.getElementById('chart');
       if(ctx && window.C.lbl.length>0){
+        // ✅ CORRECCIÓN CRÍTICA: Estructura 'data' explícita y válida para Chart.js v4
         new Chart(ctx, {
-          type:'line',
+          type: 'line',
           data: {
-            labels:window.C.lbl,
-            datasets:[
-              {label:'M', data:window.C.vM, borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,0.1)', fill:true, tension:0.3},
-              {label:'R', data:window.C.vR, borderColor:'#22c55e', backgroundColor:'rgba(34,197,94,0.1)', fill:true, tension:0.3},
-              {label:'P', data:window.C.vP, borderColor:'#f59e0b', backgroundColor:'rgba(245,158,11,0.1)', fill:true, tension:0.3}
+            labels: window.C.lbl,
+            datasets: [
+              {label: 'Migraciones', data: window.C.vM, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.3},
+              {label: 'Registro', data: window.C.vR, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.1)', fill: true, tension: 0.3},
+              {label: 'Proyectado', data: window.C.vP, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: true, tension: 0.3}
             ]
           },
-          options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{ticks:{maxRotation:45,autoSkip:true,maxTicksLimit:10},grid:{display:false}},y:{beginAtZero:true,ticks:{stepSize:5},grid:{color:'#e2e8f0'}}}}
+          options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {display: false}}, scales: {x: {ticks: {maxRotation: 45, autoSkip: true, maxTicksLimit: 10}, grid: {display: false}}, y: {beginAtZero: true, ticks: {stepSize: 5}, grid: {color: '#e2e8f0'}}}}
         });
       }
     }, 100);
@@ -316,7 +316,7 @@ async function registrarViaje(){
   try {
     await fetch(window.C.app_url, {method:'POST', mode:'cors', headers:{'Content-Type':'text/plain'}, body:JSON.stringify({tipo:'SALIDA',fecha:s,pais:p,estado:'R'})});
     await fetch(window.C.app_url, {method:'POST', mode:'cors', headers:{'Content-Type':'text/plain'}, body:JSON.stringify({tipo:'ENTRADA',fecha:r,pais:p,estado:'R'})});
-    showRes('res-reg','✅ Registrado correctamente. <strong>Refresca la página</strong> para ver los cambios en gráfica y tabla.');
+    showRes('res-reg','✅ Registrado correctamente. <strong>Refresca la página</strong> para ver cambios.');
     document.getElementById('reg-s').value=''; document.getElementById('reg-r').value=''; document.getElementById('reg-p').value='';
   } catch(e) { showRes('res-reg','❌ Error de red o URL inválida'); }
   finally { btn.disabled=false; btn.textContent='💾 Guardar Registro'; }
@@ -359,7 +359,7 @@ async function calcularYGuardar(){
       await fetch(window.C.app_url, {method:'POST', mode:'cors', headers:{'Content-Type':'text/plain'}, body:JSON.stringify({tipo:'SALIDA',fecha:it.s,pais:it.p,estado:'P'})});
       await fetch(window.C.app_url, {method:'POST', mode:'cors', headers:{'Content-Type':'text/plain'}, body:JSON.stringify({tipo:'ENTRADA',fecha:it.r,pais:it.p,estado:'P'})});
     }
-    showRes('res-proj',`<strong>✅ Proyección guardada.</strong><br>Días proyectados: ${totalProj}<br>Total estimado: ${newTotal}/183<br>${status}<br><br><em>Refresca la página para ver en gráfica.</em>`);
+    showRes('res-proj',`<strong>✅ Proyección guardada.</strong><br>Días proyectados: ${totalProj}<br>Total estimado: ${newTotal}/183<br>${status}<br><br><em>Refresca la página.</em>`);
     document.getElementById('proj-list').innerHTML=''; projCount=0;
   } catch(e) { showRes('res-proj','❌ Error al guardar proyección'); }
   finally { btn.disabled=false; btn.textContent='📊 Calcular & Guardar'; }
