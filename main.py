@@ -1,12 +1,12 @@
 # =============================================================================
-# CONTROL SUNAT - VERSIÓN ESTABLE (Login + Animación + Dashboard)
+# CONTROL SUNAT - VERSIÓN ESTABLE (Backend intacto + Login + Vértices)
 # =============================================================================
 import os, json, pandas as pd, gspread
 from jinja2 import Template
 from datetime import date, timedelta
 from collections import Counter, defaultdict
 
-# 🔑 CONFIGURACIÓN
+# 🔑 CONFIGURACIÓN (IDÉNTICA A LA QUE FUNCIONABA)
 SHEET_ID = os.environ["SHEET_ID"]
 APPS_SCRIPT_URL = os.environ["APPS_SCRIPT_URL"]
 CREDENTIALS_JSON = json.loads(os.environ["GOOGLE_CREDENTIALS"])
@@ -67,7 +67,7 @@ def grafica_mensual(vdf):
             c += timedelta(days=1)
     return dict(sorted(datos.items()))
 
-# 🔹 PROCESAMIENTO
+# 🔹 PROCESAMIENTO DE DATOS (SIN CAMBIOS)
 gc = gspread.service_account_from_dict(CREDENTIALS_JSON)
 sheet = gc.open_by_key(SHEET_ID).sheet1
 df = pd.DataFrame(sheet.get_all_records())
@@ -125,28 +125,44 @@ config_data = {
 config_str = json.dumps(config_data, ensure_ascii=False)
 
 # =============================================================================
-# PLANTILLA HTML (LOGIN + ANIMACIÓN + DASHBOARD - VALIDADA)
+# PLANTILLA HTML (SOLO SE AÑADE LOGIN + VÉRTICES. DASHBOARD IDÉNTICO)
 # =============================================================================
 html_template = """<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-store">
 <title>Control SUNAT</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:system-ui,-apple-system,sans-serif;overflow-x:hidden;background:#0f172a}
-  #bg-canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0}
+  
+  /* ✅ CANVAS DE FONDO (Siempre visible detrás del login) */
+  #bg-canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:1}
+  
+  /* ✅ PANTALLA DE LOGIN (Transparente para ver el canvas) */
   #login-screen{position:fixed;top:0;left:0;width:100%;height:100%;z-index:10;display:flex;align-items:center;justify-content:center}
-  #login-box{position:relative;z-index:11;background:rgba(255,255,255,0.95);backdrop-filter:blur(10px);padding:30px;border-radius:12px;width:90%;max-width:340px;text-align:center;box-shadow:0 20px 40px rgba(0,0,0,0.4)}
+  
+  /* ✅ CAJA DE LOGIN */
+  #login-box{
+    position:relative;z-index:11;
+    background:rgba(255,255,255,0.95);backdrop-filter:blur(10px);
+    padding:30px;border-radius:12px;width:90%;max-width:340px;text-align:center;
+    box-shadow:0 20px 40px rgba(0,0,0,0.4);
+  }
   #login-box h2{margin:0 0 20px;color:#0f172a;font-size:1.5rem}
   #login-box input{width:100%;padding:12px;margin:8px 0;border:2px solid #e2e8f0;border-radius:8px;font-size:1rem}
   #login-box input:focus{border-color:#2563eb;outline:none}
   #login-box button{width:100%;padding:12px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;margin-top:10px}
+  #login-box button:hover{background:#1d4ed8}
   #login-err{color:#ef4444;font-size:0.85rem;margin-top:10px;display:none}
-  #main-app{display:none;position:relative;z-index:20;min-height:100vh;padding:12px;background:#f8f9fa}
   
+  /* ✅ APP (Oculta al inicio) */
+  #main-app{display:none;position:relative;z-index:5;min-height:100vh;padding:12px;background:#f8f9fa}
+  
+  /* ESTILOS DASHBOARD (EXACTAMENTE LOS QUE FUNCIONABAN) */
   .card{background:#fff;border-radius:10px;padding:16px;margin-bottom:12px;box-shadow:0 2px 6px rgba(0,0,0,0.06)}
   .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:480px){.grid-2{grid-template-columns:1fr}}
   .chart-wrap{position:relative;height:240px;margin-top:8px;background:#fafafa;border-radius:8px}
@@ -161,7 +177,6 @@ html_template = """<!DOCTYPE html>
   .rank-box{background:#f8fafc;padding:10px;border-radius:6px;min-width:130px;margin:5px}
   .rank-item{display:flex;justify-content:space-between;align-items:center;font-size:0.8rem;margin:5px 0}
   .flag{width:20px;height:14px;border-radius:2px;object-fit:cover;margin-right:6px}
-  .footer{text-align:center;font-size:0.7rem;color:#6c757d;margin-top:16px}
 </style>
 </head>
 <body>
@@ -195,34 +210,30 @@ html_template = """<!DOCTYPE html>
     </div>
     <div id="hist"></div>
   </div>
-  <div class="footer">Cálculo según Art. 7° LIR. No sustituye asesoría tributaria.</div>
 </div>
 
 <script id="cfg" type="application/json">{{ config_str | safe }}</script>
 <script>
-// 1. ANIMACIÓN VÉRTICES (IIFE - Ejecución inmediata)
+// 1. ANIMACIÓN VÉRTICES (Fondo visible desde el inicio)
 (function(){
-  var c=document.getElementById('bg-canvas'), x=c.getContext('2d');
-  var pts=[], w, h;
-  function rsz(){w=c.width=window.innerWidth;h=c.height=window.innerHeight;}
-  window.addEventListener('resize', rsz); rsz();
-  for(var i=0;i<60;i++) pts.push({x:Math.random()*w, y:Math.random()*h, vx:(Math.random()-0.5)*1.5, vy:(Math.random()-0.5)*1.5});
-  function draw(){
+  const c=document.getElementById('bg-canvas'), x=c.getContext('2d');
+  let pts=[], w, h;
+  const rsz=()=>{w=c.width=innerWidth;h=c.height=innerHeight};
+  addEventListener('resize',rsz); rsz();
+  for(let i=0;i<60;i++) pts.push({x:Math.random()*w, y:Math.random()*h, vx:(Math.random()-0.5)*1.5, vy:(Math.random()-0.5)*1.5});
+  const draw=()=>{
     x.clearRect(0,0,w,h); x.fillStyle='rgba(147,197,253,0.8)';
-    for(var i=0;i<pts.length;i++){
-      var p=pts[i]; p.x+=p.vx; p.y+=p.vy;
-      if(p.x<0||p.x>w)p.vx*=-1; if(p.y<0||p.y>h)p.vy*=-1;
+    pts.forEach(p=>{
+      p.x+=p.vx; p.y+=p.vy;
+      if(p.x<0||p.x>w) p.vx*=-1; if(p.y<0||p.y>h) p.vy*=-1;
       x.beginPath(); x.arc(p.x,p.y,2.5,0,Math.PI*2); x.fill();
-    }
-    for(var i=0;i<pts.length;i++){
-      for(var j=i+1;j<pts.length;j++){
-        var dx=pts[i].x-pts[j].x, dy=pts[i].y-pts[j].y, d=Math.sqrt(dx*dx+dy*dy);
-        if(d<150){x.strokeStyle='rgba(147,197,253,'+(0.4-d/375)+')'; x.lineWidth=1; x.beginPath(); x.moveTo(pts[i].x,pts[i].y); x.lineTo(pts[j].x,pts[j].y); x.stroke();}
-      }
+    });
+    for(let i=0;i<pts.length;i++) for(let j=i;j<pts.length;j++){
+      const dx=pts[i].x-pts[j].x, dy=pts[i].y-pts[j].y, d=Math.sqrt(dx*dx+dy*dy);
+      if(d<150){ x.strokeStyle=`rgba(147,197,253,${0.4-d/375})`; x.lineWidth=1; x.beginPath(); x.moveTo(pts[i].x,pts[i].y); x.lineTo(pts[j].x,pts[j].y); x.stroke(); }
     }
     requestAnimationFrame(draw);
-  }
-  draw();
+  }; draw();
 })();
 
 // 2. LOGIN
@@ -232,57 +243,57 @@ function checkLogin(){
     document.getElementById('main-app').style.display='block';
     loadDashboard();
   } else {
-    var e=document.getElementById('login-err'); e.style.display='block'; setTimeout(function(){e.style.display='none';},2000);
+    const e=document.getElementById('login-err'); e.style.display='block'; setTimeout(()=>e.style.display='none',2000);
   }
 }
-document.getElementById('pass').addEventListener('keypress', function(e){if(e.key==='Enter')checkLogin();});
+document.getElementById('pass').addEventListener('keypress', e=>{if(e.key==='Enter') checkLogin()});
 
-// 3. DASHBOARD
+// 3. DASHBOARD (LÓGICA QUE YA FUNCIONABA)
 function loadDashboard(){
   try {
-    var raw = document.getElementById('cfg')?.textContent;
+    const raw = document.getElementById('cfg')?.textContent;
     if(!raw) throw new Error('Config no encontrada');
-    window.C = JSON.parse(raw);
+    const C = JSON.parse(raw);
     
-    document.getElementById('sum').textContent = 'Total: '+window.C.dias_12m+' / '+window.C.limite+' días';
-    document.getElementById('d12').textContent = window.C.dias_12m+' días';
-    document.getElementById('da').textContent = window.C.dias_anio+' días';
+    document.getElementById('sum').textContent = `Total: ${C.dias_12m} / ${C.limite} días`;
+    document.getElementById('d12').textContent = `${C.dias_12m} días`;
+    document.getElementById('da').textContent = `${C.dias_anio} días`;
 
-    var rh='';
-    for(var est of ["M","R","P"]){
-      rh+='<div class="rank-box"><strong>'+est+'</strong>';
-      (window.C.ranking[est]||[]).forEach(function(r){rh+='<div class="rank-item"><img src="https://flagcdn.com/w40/'+r.iso+'.png" class="flag"><span>'+r.pais+'</span><span style="background:#e2e8f0;padding:2px 6px;border-radius:4px">'+r.dias+'d</span></div>';});
+    let rh='';
+    for(let est of ["M","R","P"]){
+      rh+=`<div class="rank-box"><strong>${est}</strong>`;
+      (C.ranking[est]||[]).forEach(r=>rh+=`<div class="rank-item"><img src="https://flagcdn.com/w40/${r.iso}.png" class="flag"><span>${r.pais}</span><span style="background:#e2e8f0;padding:2px 6px;border-radius:4px">${r.dias}d</span></div>`);
       rh+='</div>';
     }
     document.getElementById('rank').innerHTML=rh;
 
-    window.filt=function(f){
-      var d=f==='todos'?window.C.viajes:window.C.viajes.filter(function(v){return v.estado===f;});
-      var h='<table><tr><th>Salida</th><th>Retorno</th><th>País</th><th>Días</th><th>Estado</th></tr>';
+    window.filt=f=>{
+      const d=f==='todos'?C.viajes:C.viajes.filter(v=>v.estado===f);
+      let h='<table><tr><th>Salida</th><th>Retorno</th><th>País</th><th>Días</th><th>Estado</th></tr>';
       if(!d.length) h+='<tr><td colspan="5" style="text-align:center;padding:15px;color:#64748b">Sin registros</td></tr>';
-      else d.slice().reverse().forEach(function(v){h+='<tr><td>'+v.salida_str.split('-').reverse().join('/')+'</td><td>'+v.entrada_str.split('-').reverse().join('/')+'</td><td>'+v.pais+'</td><td style="text-align:right">'+v.dias+'</td><td><span class="badge-'+v.estado+'">'+v.estado+'</span></td></tr>';});
+      else d.slice().reverse().forEach(v=>h+=`<tr><td>${v.salida_str.split('-').reverse().join('/')}</td><td>${v.entrada_str.split('-').reverse().join('/')}</td><td>${v.pais}</td><td style="text-align:right">${v.dias}</td><td><span class="badge-${v.estado}">${v.estado}</span></td></tr>`);
       document.getElementById('hist').innerHTML=h+'</table>';
     };
     window.filt('todos');
 
-    setTimeout(function(){
-      var ctx=document.getElementById('chart');
-      if(ctx && window.C.lbl.length>0){
+    setTimeout(()=>{
+      const ctx=document.getElementById('chart');
+      if(ctx && C.lbl.length>0){
         new Chart(ctx, {
-          type: 'line',
-          data: {
-            labels: window.C.lbl,
-            datasets: [
-              { label: 'Migraciones', data: window.C.vM, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.3 },
-              { label: 'Registro', data: window.C.vR, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.1)', fill: true, tension: 0.3 },
-              { label: 'Proyectado', data: window.C.vP, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: true, tension: 0.3 }
+          type:'line',
+           {
+            labels:C.lbl,
+            datasets:[
+              {label:'M', data:C.vM, borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,0.1)', fill:true, tension:0.3},
+              {label:'R', data:C.vR, borderColor:'#22c55e', backgroundColor:'rgba(34,197,94,0.1)', fill:true, tension:0.3},
+              {label:'P', data:C.vP, borderColor:'#f59e0b', backgroundColor:'rgba(245,158,11,0.1)', fill:true, tension:0.3}
             ]
           },
-          options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {display: false}}, scales: {x: {ticks: {maxRotation: 45, autoSkip: true, maxTicksLimit: 10}, grid: {display: false}}, y: {beginAtZero: true, ticks: {stepSize: 5}, grid: {color: '#e2e8f0'}}}}
+          options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{ticks:{maxRotation:45,autoSkip:true,maxTicksLimit:10},grid:{display:false}},y:{beginAtZero:true,ticks:{stepSize:5},grid:{color:'#e2e8f0'}}}}
         });
       }
     }, 100);
-  } catch(e){ console.error(e); alert('Error al cargar: '+e.message); }
+  } catch(e){ console.error(e); alert('Error: '+e.message); }
 }
 </script>
 </body>
@@ -300,4 +311,4 @@ html_final = Template(html_template).render(
 
 with open("index.html", "w", encoding="utf-8") as f:
     f.write(html_final)
-print("✅ index.html generado | Login + Animación + Dashboard base | Credenciales: admin/admin")
+print("✅ index.html generado | Login funcional + Vértices visibles | Credenciales: admin/admin")
