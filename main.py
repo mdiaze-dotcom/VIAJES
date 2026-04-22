@@ -261,7 +261,7 @@ html_template = """<!DOCTYPE html>
   <div style="font-size:0.85rem;color:#6c757d;margin-top:4px">
     🔵 M: {{dias_por_estado_12m.M}}d | 🟢 R: {{dias_por_estado_12m.R}}d | 🟡 P: {{dias_por_estado_12m.P}}d
   </div>
-  {% if anomalias %}<div class="alert">⚠️ {{', '.join(anomalias[:3])}}{{'...' if len(anomalias)>3 else ''}}</div>{% endif %}
+  {% if anomalias %}<div class="alert">⚠️ {{', '.join(anomalias[:3])}}{{'...' if anomalias|length > 3 else ''}}</div>{% endif %}
   {% if dias_12m >= limite_sunat %}
   <div class="alert" style="background:#f8d7da;border-color:#dc3545;color:#842029">
     🔴 <strong>ALERTA CRÍTICA:</strong> Has superado los {{limite_sunat}} días. Podrías perder tu domicilio fiscal en Perú.
