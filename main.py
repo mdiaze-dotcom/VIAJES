@@ -49,26 +49,35 @@ def parse_fecha(val):
     except: return None
 
 def eventos_a_viajes(df):
-    """Convierte filas ENTRADA/SALIDA en viajes calculando días con regla SUNAT (-1 día)"""
-    viajes, buffer, anomalias = [], {}, []
+    """Empareja SALIDA -> ENTRADA por orden cronológico (FIFO) ignorando país de retorno."""
+    viajes, buffer, anomalias = [], {"M":[], "R":[], "P":[]}, []
+    
     for _, r in df.iterrows():
         tipo, f, p, e = r["TIPO"], r["FECHA"], str(r["PAIS"]).strip(), r["ESTADO"]
-        k = f"{p}_{e}"
+        if e not in buffer: continue
+        
         if tipo == "SALIDA":
-            if k in buffer: anomalias.append(f"⚠️ {e}: Salida duplicada {p}")
-            buffer[k] = {"salida": f, "estado": e, "pais": p}
-        elif tipo == "ENTRADA" and k in buffer:
-            ini = buffer.pop(k)
-            dias = max(0, (f - ini["salida"]).days - 1)
-            viajes.append({"salida":ini["salida"], "entrada":f, "pais":ini["pais"], "dias":dias, "estado":ini["estado"], "en_curso":False})
-        elif tipo == "ENTRADA" and k not in buffer:
-            anomalias.append(f"⚠️ {e}: Entrada sin salida {p}")
-    
+            buffer[e].append({"salida": f, "estado": e, "pais": p})
+        elif tipo == "ENTRADA":
+            if not buffer[e]:
+                anomalias.append(f"⚠️ {e}: Entrada sin salida ({f.strftime('%d/%m/%Y')})")
+            else:
+                ini = buffer[e].pop(0) # ✅ FIFO: cierra la salida más antigua pendiente
+                dias = max(0, (f - ini["salida"]).days - 1) # Regla SUNAT
+                viajes.append({
+                    "salida": ini["salida"], "entrada": f,
+                    "pais": ini["pais"],  # ✅ País del viaje = País de SALIDA
+                    "dias": dias, "estado": ini["estado"], "en_curso": False
+                })
+                
+    # Cierra viajes abiertos (en_curso)
     hoy = date.today()
-    for k, ini in buffer.items():
-        dias = max(0, (hoy - ini["salida"]).days - 1)
-        viajes.append({"salida":ini["salida"], "entrada":hoy, "pais":ini["pais"], "dias":dias, "estado":ini["estado"], "en_curso":True})
-        anomalias.append(f"ℹ️ {ini['estado']}: En curso {ini['pais']}")
+    for e, pendientes in buffer.items():
+        for ini in pendientes:
+            dias = max(0, (hoy - ini["salida"]).days - 1)
+            viajes.append({"salida":ini["salida"], "entrada":hoy, "pais":ini["pais"], "dias":dias, "estado":e, "en_curso":True})
+            anomalias.append(f"ℹ️ {e}: En curso {ini['pais']}")
+            
     return pd.DataFrame(viajes), anomalias
 
 def resumen_ventana(vdf, ref, dias=365):
