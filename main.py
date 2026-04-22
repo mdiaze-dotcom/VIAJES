@@ -1,5 +1,5 @@
 # =============================================================================
-# CONTROL SUNAT - VERSIÓN FINAL ESTABLE (Login + Vértices + Registrar + Proyectar)
+# CONTROL SUNAT - VERSIÓN FINAL VALIDADA (Login + Vértices + Registrar + Proyectar)
 # =============================================================================
 import os, json, pandas as pd, gspread
 from jinja2 import Template
@@ -125,7 +125,7 @@ config_data = {
 config_str = json.dumps(config_data, ensure_ascii=False)
 
 # =============================================================================
-# PLANTILLA HTML (SINTAXIS JS VALIDADA + LOGIN + VÉRTICES + REGISTRAR + PROYECTAR)
+# PLANTILLA HTML (ESTRUCTURA VALIDADA: LOGIN + VÉRTICES + REGISTRAR + PROYECTAR)
 # =============================================================================
 html_template = """<!DOCTYPE html>
 <html lang="es">
@@ -146,7 +146,7 @@ html_template = """<!DOCTYPE html>
   #login-box input:focus{border-color:#2563eb;outline:none}
   #login-box button{width:100%;padding:12px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;margin-top:10px}
   #login-err{color:#ef4444;font-size:0.85rem;margin-top:10px;display:none}
-  #main-app{display:none;position:relative;z-index:5;min-height:100vh;padding:12px;background:#f8f9fa}
+  #main-app{display:none;position:relative;z-index:20;min-height:100vh;padding:12px;background:#f8f9fa}
   
   .card{background:#fff;border-radius:10px;padding:16px;margin-bottom:12px;box-shadow:0 2px 6px rgba(0,0,0,0.06)}
   .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:480px){.grid-2{grid-template-columns:1fr}}
@@ -206,7 +206,7 @@ html_template = """<!DOCTYPE html>
     <p style="font-size:0.8rem;color:#64748b;margin-bottom:8px">Máx. 3 itinerarios. Calcula impacto y guarda como proyección.</p>
     <div id="proj-list"></div>
     <div style="display:flex;gap:8px;margin-top:8px">
-      <button class="btn btn-outline" id="btn-add-proj" onclick="addProjItin()">+ Agregar</button>
+      <button class="btn btn-outline" onclick="addProjItin()">+ Agregar</button>
       <button class="btn btn-green" id="btn-save-proj" onclick="calcularYGuardar()">📊 Calcular & Guardar</button>
     </div>
     <div id="res-proj" class="result-box"></div>
@@ -227,76 +227,91 @@ html_template = """<!DOCTYPE html>
 
 <script id="cfg" type="application/json">{{ config_str | safe }}</script>
 <script>
-// 1. ANIMACIÓN VÉRTICES
+// 1. ANIMACIÓN VÉRTICES (IIFE - Se ejecuta inmediatamente)
 (function(){
-  const c=document.getElementById('bg-canvas'), x=c.getContext('2d');
-  let pts=[], w, h;
-  const rsz=()=>{w=c.width=innerWidth;h=c.height=innerHeight};
-  addEventListener('resize',rsz); rsz();
-  for(let i=0;i<60;i++) pts.push({x:Math.random()*w, y:Math.random()*h, vx:(Math.random()-0.5)*1.5, vy:(Math.random()-0.5)*1.5});
-  const draw=()=>{
+  var c=document.getElementById('bg-canvas'), x=c.getContext('2d');
+  var pts=[], w, h;
+  function rsz(){w=c.width=window.innerWidth;h=c.height=window.innerHeight;}
+  window.addEventListener('resize', rsz); rsz();
+  for(var i=0;i<60;i++) pts.push({x:Math.random()*w, y:Math.random()*h, vx:(Math.random()-0.5)*1.5, vy:(Math.random()-0.5)*1.5});
+  function draw(){
     x.clearRect(0,0,w,h); x.fillStyle='rgba(147,197,253,0.8)';
-    pts.forEach(p=>{p.x+=p.vx; p.y+=p.vy; if(p.x<0||p.x>w)p.vx*=-1; if(p.y<0||p.y>h)p.vy*=-1; x.beginPath(); x.arc(p.x,p.y,2.5,0,Math.PI*2); x.fill();});
-    for(let i=0;i<pts.length;i++) for(let j=i;j<pts.length;j++){const dx=pts[i].x-pts[j].x, dy=pts[i].y-pts[j].y, d=Math.sqrt(dx*dx+dy*dy); if(d<150){x.strokeStyle=`rgba(147,197,253,${0.4-d/375})`; x.lineWidth=1; x.beginPath(); x.moveTo(pts[i].x,pts[i].y); x.lineTo(pts[j].x,pts[j].y); x.stroke();}}
+    for(var i=0;i<pts.length;i++){
+      var p=pts[i]; p.x+=p.vx; p.y+=p.vy;
+      if(p.x<0||p.x>w)p.vx*=-1; if(p.y<0||p.y>h)p.vy*=-1;
+      x.beginPath(); x.arc(p.x,p.y,2.5,0,Math.PI*2); x.fill();
+    }
+    for(var i=0;i<pts.length;i++){
+      for(var j=i+1;j<pts.length;j++){
+        var dx=pts[i].x-pts[j].x, dy=pts[i].y-pts[j].y, d=Math.sqrt(dx*dx+dy*dy);
+        if(d<150){x.strokeStyle='rgba(147,197,253,'+(0.4-d/375)+')'; x.lineWidth=1; x.beginPath(); x.moveTo(pts[i].x,pts[i].y); x.lineTo(pts[j].x,pts[j].y); x.stroke();}
+      }
+    }
     requestAnimationFrame(draw);
-  }; draw();
+  }
+  draw();
 })();
 
 // 2. LOGIN
 function checkLogin(){
-  if(document.getElementById('user').value==='admin' && document.getElementById('pass').value==='admin'){
+  var u=document.getElementById('user').value;
+  var p=document.getElementById('pass').value;
+  if(u==='admin'&&p==='admin'){
     document.getElementById('login-screen').style.display='none';
     document.getElementById('main-app').style.display='block';
     loadDashboard();
-  } else { const e=document.getElementById('login-err'); e.style.display='block'; setTimeout(()=>e.style.display='none',2000); }
+  } else {
+    var e=document.getElementById('login-err'); e.style.display='block'; setTimeout(function(){e.style.display='none';},2000);
+  }
 }
-document.getElementById('pass').addEventListener('keypress', e=>{if(e.key==='Enter') checkLogin()});
+document.getElementById('pass').addEventListener('keypress', function(e){if(e.key==='Enter')checkLogin();});
 
 // 3. HELPERS
-const isValidDate = s => /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s);
-const parseDate = s => { const p=s.split('/'); return new Date(+p[2], +p[1]-1, +p[0]); };
-const showRes = (id, msg) => { const e=document.getElementById(id); e.innerHTML=msg; e.style.display='block'; };
+function isValidDate(s){return /^\\d{1,2}\\/\\d{1,2}\\/\\d{4}$/.test(s);}
+function parseDate(s){var p=s.split('/'); return new Date(+p[2], +p[1]-1, +p[0]);}
+function showRes(id, msg){var e=document.getElementById(id); e.innerHTML=msg; e.style.display='block';}
 
 // 4. DASHBOARD
 function loadDashboard(){
   try {
-    const raw = document.getElementById('cfg')?.textContent;
+    var raw = document.getElementById('cfg')?.textContent;
     if(!raw) throw new Error('Config no encontrada');
     window.C = JSON.parse(raw);
     
-    document.getElementById('sum').textContent = `Total: ${window.C.dias_12m} / ${window.C.limite} días`;
-    document.getElementById('d12').textContent = `${window.C.dias_12m} días`;
-    document.getElementById('da').textContent = `${window.C.dias_anio} días`;
+    document.getElementById('sum').textContent = 'Total: '+window.C.dias_12m+' / '+window.C.limite+' días';
+    document.getElementById('d12').textContent = window.C.dias_12m+' días';
+    document.getElementById('da').textContent = window.C.dias_anio+' días';
 
-    let rh='';
-    for(let est of ["M","R","P"]){
-      rh+=`<div class="rank-box"><strong>${est}</strong>`;
-      (window.C.ranking[est]||[]).forEach(r=>rh+=`<div class="rank-item"><img src="https://flagcdn.com/w40/${r.iso}.png" class="flag"><span>${r.pais}</span><span style="background:#e2e8f0;padding:2px 6px;border-radius:4px">${r.dias}d</span></div>`);
+    var rh='';
+    for(var est of ["M","R","P"]){
+      rh+='<div class="rank-box"><strong>'+est+'</strong>';
+      (window.C.ranking[est]||[]).forEach(function(r){rh+='<div class="rank-item"><img src="https://flagcdn.com/w40/'+r.iso+'.png" class="flag"><span>'+r.pais+'</span><span style="background:#e2e8f0;padding:2px 6px;border-radius:4px">'+r.dias+'d</span></div>';});
       rh+='</div>';
     }
     document.getElementById('rank').innerHTML=rh;
 
-    window.filt=f=>{
-      const d=f==='todos'?window.C.viajes:window.C.viajes.filter(v=>v.estado===f);
-      let h='<table><tr><th>Salida</th><th>Retorno</th><th>País</th><th>Días</th><th>Estado</th></tr>';
+    window.filt=function(f){
+      var d=f==='todos'?window.C.viajes:window.C.viajes.filter(function(v){return v.estado===f;});
+      var h='<table><tr><th>Salida</th><th>Retorno</th><th>País</th><th>Días</th><th>Estado</th></tr>';
       if(!d.length) h+='<tr><td colspan="5" style="text-align:center;padding:15px;color:#64748b">Sin registros</td></tr>';
-      else d.slice().reverse().forEach(v=>h+=`<tr><td>${v.salida_str.split('-').reverse().join('/')}</td><td>${v.entrada_str.split('-').reverse().join('/')}</td><td>${v.pais}</td><td style="text-align:right">${v.dias}</td><td><span class="badge-${v.estado}">${v.estado}</span></td></tr>`);
+      else d.slice().reverse().forEach(function(v){
+        h+='<tr><td>'+v.salida_str.split('-').reverse().join('/')+'</td><td>'+v.entrada_str.split('-').reverse().join('/')+'</td><td>'+v.pais+'</td><td style="text-align:right">'+v.dias+'</td><td><span class="badge-'+v.estado+'">'+v.estado+'</span></td></tr>';
+      });
       document.getElementById('hist').innerHTML=h+'</table>';
     };
     window.filt('todos');
 
-    setTimeout(()=>{
-      const ctx=document.getElementById('chart');
+    setTimeout(function(){
+      var ctx=document.getElementById('chart');
       if(ctx && window.C.lbl.length>0){
-        // ✅ CORRECCIÓN CRÍTICA: Estructura 'data' explícita y válida para Chart.js v4
         new Chart(ctx, {
           type: 'line',
-          data: {
+           {
             labels: window.C.lbl,
             datasets: [
-              {label: 'Migraciones', data: window.C.vM, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.3},
-              {label: 'Registro', data: window.C.vR, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.1)', fill: true, tension: 0.3},
-              {label: 'Proyectado', data: window.C.vP, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: true, tension: 0.3}
+              { label: 'Migraciones',  window.C.vM, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.3 },
+              { label: 'Registro',  window.C.vR, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.1)', fill: true, tension: 0.3 },
+              { label: 'Proyectado',  window.C.vP, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: true, tension: 0.3 }
             ]
           },
           options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {display: false}}, scales: {x: {ticks: {maxRotation: 45, autoSkip: true, maxTicksLimit: 10}, grid: {display: false}}, y: {beginAtZero: true, ticks: {stepSize: 5}, grid: {color: '#e2e8f0'}}}}
@@ -308,11 +323,11 @@ function loadDashboard(){
 
 // 5. REGISTRAR VIAJE (R)
 async function registrarViaje(){
-  const s=document.getElementById('reg-s').value.trim(), r=document.getElementById('reg-r').value.trim(), p=document.getElementById('reg-p').value.trim();
+  var s=document.getElementById('reg-s').value.trim(), r=document.getElementById('reg-r').value.trim(), p=document.getElementById('reg-p').value.trim();
   if(!isValidDate(s)||!isValidDate(r)||!p) return showRes('res-reg','❌ Completa todos los campos en formato DD/MM/YYYY');
   if(parseDate(r)<parseDate(s)) return showRes('res-reg','❌ Retorno debe ser posterior a salida');
   
-  const btn=document.getElementById('btn-reg'); btn.disabled=true; btn.textContent='⏳ Guardando...';
+  var btn=document.getElementById('btn-reg'); btn.disabled=true; btn.textContent='⏳ Guardando...';
   try {
     await fetch(window.C.app_url, {method:'POST', mode:'cors', headers:{'Content-Type':'text/plain'}, body:JSON.stringify({tipo:'SALIDA',fecha:s,pais:p,estado:'R'})});
     await fetch(window.C.app_url, {method:'POST', mode:'cors', headers:{'Content-Type':'text/plain'}, body:JSON.stringify({tipo:'ENTRADA',fecha:r,pais:p,estado:'R'})});
@@ -323,43 +338,44 @@ async function registrarViaje(){
 }
 
 // 6. PROYECTAR VIAJES (P)
-let projCount = 0;
+var projCount = 0;
 function addProjItin(){
   if(projCount>=3) return showRes('res-proj','⚠️ Máximo 3 itinerarios permitidos');
   projCount++;
-  const list=document.getElementById('proj-list');
-  const div=document.createElement('div'); div.className='itin-card';
-  div.innerHTML=`<div style="font-weight:600;margin-bottom:4px">Itinerario #${projCount}</div>
-    <div class="grid-2"><div class="form-group"><input class="p-s" placeholder="Salida DD/MM/YYYY"></div><div class="form-group"><input class="p-r" placeholder="Retorno DD/MM/YYYY"></div></div>
-    <div class="form-group"><input class="p-p" placeholder="País destino"></div>
-    <button class="btn-red" onclick="removeProjItin(this)">🗑️ Quitar</button>`;
+  var list=document.getElementById('proj-list');
+  var div=document.createElement('div'); div.className='itin-card';
+  div.innerHTML='<div style="font-weight:600;margin-bottom:4px">Itinerario #'+projCount+'</div>'+
+    '<div class="grid-2"><div class="form-group"><input class="p-s" placeholder="Salida DD/MM/YYYY"></div><div class="form-group"><input class="p-r" placeholder="Retorno DD/MM/YYYY"></div></div>'+
+    '<div class="form-group"><input class="p-p" placeholder="País destino"></div>'+
+    '<button class="btn-red" onclick="removeProjItin(this)">🗑️ Quitar</button>';
   list.appendChild(div);
 }
 function removeProjItin(btn){btn.parentElement.remove(); projCount--;}
 
 async function calcularYGuardar(){
-  const items=document.querySelectorAll('.itin-card');
+  var items=document.querySelectorAll('.itin-card');
   if(items.length===0) return showRes('res-proj','⚠️ Agrega al menos un itinerario');
   
-  let totalProj=0, itinerarios=[];
-  for(let it of items){
-    const s=it.querySelector('.p-s').value.trim(), r=it.querySelector('.p-r').value.trim(), p=it.querySelector('.p-p').value.trim();
+  var totalProj=0, itinerarios=[];
+  for(var i=0;i<items.length;i++){
+    var s=items[i].querySelector('.p-s').value.trim(), r=items[i].querySelector('.p-r').value.trim(), p=items[i].querySelector('.p-p').value.trim();
     if(!isValidDate(s)||!isValidDate(r)||!p) return showRes('res-proj','❌ Completa correctamente todos los campos');
     if(parseDate(r)<parseDate(s)) return showRes('res-proj','❌ Retorno debe ser posterior a salida');
-    const dias=Math.max(0, Math.floor((parseDate(r)-parseDate(s))/864e5) - 1);
-    totalProj+=dias; itinerarios.push({s,r,p});
+    var dias=Math.max(0, Math.floor((parseDate(r)-parseDate(s))/864e5) - 1);
+    totalProj+=dias; itinerarios.push({s:s,r:r,p:p});
   }
   
-  const newTotal=window.C.dias_12m + totalProj;
-  let status=newTotal<150?'🟢 Sin riesgo':newTotal<183?'🟡 Posible riesgo':'🔴 En riesgo (>183d)';
+  var newTotal=window.C.dias_12m + totalProj;
+  var status=newTotal<150?'🟢 Sin riesgo':newTotal<183?'🟡 Posible riesgo':'🔴 En riesgo (>183d)';
   
-  const btn=document.getElementById('btn-save-proj'); btn.disabled=true; btn.textContent='⏳ Guardando...';
+  var btn=document.getElementById('btn-save-proj'); btn.disabled=true; btn.textContent='⏳ Guardando...';
   try {
-    for(let it of itinerarios){
+    for(var j=0;j<itinerarios.length;j++){
+      var it=itinerarios[j];
       await fetch(window.C.app_url, {method:'POST', mode:'cors', headers:{'Content-Type':'text/plain'}, body:JSON.stringify({tipo:'SALIDA',fecha:it.s,pais:it.p,estado:'P'})});
       await fetch(window.C.app_url, {method:'POST', mode:'cors', headers:{'Content-Type':'text/plain'}, body:JSON.stringify({tipo:'ENTRADA',fecha:it.r,pais:it.p,estado:'P'})});
     }
-    showRes('res-proj',`<strong>✅ Proyección guardada.</strong><br>Días proyectados: ${totalProj}<br>Total estimado: ${newTotal}/183<br>${status}<br><br><em>Refresca la página.</em>`);
+    showRes('res-proj','<strong>✅ Proyección guardada.</strong><br>Días proyectados: '+totalProj+'<br>Total estimado: '+newTotal+'/183<br>'+status+'<br><br><em>Refresca la página.</em>');
     document.getElementById('proj-list').innerHTML=''; projCount=0;
   } catch(e) { showRes('res-proj','❌ Error al guardar proyección'); }
   finally { btn.disabled=false; btn.textContent='📊 Calcular & Guardar'; }
