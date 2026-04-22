@@ -25,7 +25,23 @@ PAIS_ISO = {
     "australia":"au","nueva zelanda":"nz","corea del sur":"kr","singapur":"sg","malasia":"my",
     "indonesia":"id","filipinas":"ph","vietnam":"vn","india":"in","sri lanka":"lk","emiratos arabes":"ae","dubai":"ae"
 }
-
+def normalizar_pais(nombre):
+    """Unifica variaciones de nombres de países a una forma estándar"""
+    if pd.isna(nombre): return "Desconocido"
+    n = str(nombre).strip().lower()
+    # Mapeo de variaciones comunes a nombre estándar
+    equivalencias = {
+        "eeuu": "Estados Unidos", "usa": "Estados Unidos", "us": "Estados Unidos",
+        "united states": "Estados Unidos", "estados unidos": "Estados Unidos",
+        "usa (estados unidos)": "Estados Unidos", "ee. uu.": "Estados Unidos",
+        "méxico": "México", "mexico": "México", "méjico": "México",
+        "reino unido": "Reino Unido", "inglaterra": "Reino Unido", "uk": "Reino Unido",
+        "gran bretaña": "Reino Unido", "british": "Reino Unido",
+        "colombia": "Colombia", "colômbia": "Colombia",
+        "españa": "España", "spain": "España",
+        # Agrega más según necesites
+    }
+    return equivalencias.get(n, str(nombre).strip().title())
 # 🔹 FUNCIONES AUXILIARES
 def parse_fecha(val):
     if pd.isna(val): return None
