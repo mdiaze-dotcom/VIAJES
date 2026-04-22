@@ -194,26 +194,43 @@ html_template = """<!DOCTYPE html>
 <title>Control SUNAT - Acceso Seguro</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
 <style>
-  /* ESTILOS GENERALES */
+  /* RESET & BASE */
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:0;background:#f8f9fa;color:#111;line-height:1.4}
+  body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:0;background:#f8f9fa;color:#111;overflow-x:hidden}
   
-  /* ESTILOS DE PANTALLA DE LOGIN */
-  #login-screen{position:fixed;top:0;left:0;width:100%;height:100%;background:#0f172a;z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;overflow:hidden}
-  #bg-canvas{position:absolute;top:0;left:0;width:100%;height:100%}
-  .login-box{position:relative;background:rgba(255,255,255,0.95);backdrop-filter:blur(10px);padding:35px 30px;border-radius:16px;width:90%;max-width:320px;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,0.6);z-index:10000;border:1px solid rgba(255,255,255,0.2)}
-  .login-box h2{margin:0 0 20px;color:#0f172a;font-size:1.5rem;font-weight:700}
-  .login-box input{width:100%;padding:12px 15px;margin:8px 0 16px;border:2px solid #e2e8f0;border-radius:8px;font-size:1rem;transition:0.3s}
-  .login-box input:focus{border-color:#0d6efd;outline:none}
-  .login-box button{width:100%;padding:12px;background:#0d6efd;color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;transition:0.3s}
-  .login-box button:hover{background:#0b5ed7;transform:translateY(-1px)}
-  .error-msg{color:#dc3545;font-size:0.85rem;margin-top:10px;display:none}
+  /* 🔐 PANTALLA DE LOGIN */
+  #login-screen {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    z-index: 9999; display: flex; align-items: center; justify-content: center; flex-direction: column;
+  }
+  #bg-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+  
+  .login-box {
+    position: relative; z-index: 10000;
+    background: rgba(255,255,255,0.95); backdrop-filter: blur(10px);
+    padding: 40px 30px; border-radius: 16px;
+    width: 90%; max-width: 340px; text-align: center;
+    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .login-box h2 { margin: 0 0 25px; color: #0f172a; font-size: 1.5rem; font-weight: 800; letter-spacing: -0.5px; }
+  .login-box input {
+    width: 100%; padding: 14px 15px; margin: 8px 0 16px;
+    border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; transition: 0.3s;
+  }
+  .login-box input:focus { border-color: #3b82f6; outline: none; box-shadow: 0 0 0 3px rgba(59,130,246,0.2); }
+  .login-box button {
+    width: 100%; padding: 14px; background: #3b82f6; color: #fff;
+    border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: 0.3s;
+  }
+  .login-box button:hover { background: #2563eb; transform: translateY(-2px); }
+  .error-msg { color: #ef4444; font-size: 0.9rem; margin-top: 15px; display: none; font-weight: 500; }
 
-  /* ESTILOS DE LA APP (Ocultos inicialmente) */
-  #main-app{opacity:0;pointer-events:none;transition:opacity 0.6s ease-in-out;padding:12px}
-  #main-app.visible{opacity:1;pointer-events:auto}
+  /* 📱 APLICACIÓN PRINCIPAL (Oculta por defecto) */
+  #main-app { display: none; padding: 12px; min-height: 100vh; }
   
-  /* ESTILOS EXISTENTES DEL DASHBOARD */
+  /* ESTILOS DEL DASHBOARD */
   .card{background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,0.08)}
   .status-green{border-left:5px solid #198754;padding-left:12px}.status-orange{border-left:5px solid #fd7e14;padding-left:12px}.status-red{border-left:5px solid #dc3545;padding-left:12px}
   h1,h2,h3{margin:0 0 8px;font-weight:600}h1{font-size:1.25rem}h2{font-size:1.1rem}h3{font-size:1rem}
@@ -242,19 +259,19 @@ html_template = """<!DOCTYPE html>
 </head>
 <body>
 
-<!-- 🔐 PANTALLA DE LOGIN -->
+<!-- 🔐 LOGIN SCREEN -->
 <div id="login-screen">
   <canvas id="bg-canvas"></canvas>
   <div class="login-box">
     <h2>🔐 Acceso Seguro</h2>
-    <input type="text" id="user" placeholder="Usuario" value="admin">
+    <input type="text" id="user" placeholder="Usuario" autocomplete="off">
     <input type="password" id="pass" placeholder="Contraseña">
-    <button onclick="intentarLogin()">INGRESAR</button>
+    <button id="btn-login" onclick="intentarLogin()">INGRESAR</button>
     <p id="error-msg" class="error-msg">❌ Usuario o contraseña incorrectos</p>
   </div>
 </div>
 
-<!-- 📱 APLICACIÓN PRINCIPAL (Se muestra tras login exitoso) -->
+<!-- 📱 MAIN APP -->
 <div id="main-app">
   <div class="card status-{{c12}}">
     <h1>🇵🇪 Estado Residencia Fiscal</h1>
@@ -263,7 +280,7 @@ html_template = """<!DOCTYPE html>
     <p style="margin:8px 0 0"><strong>Total últimos 12m:</strong> {{dias_12m}} / {{limite}} días</p>
     <div style="font-size:0.85rem;color:#6c757d">🔵M:{{dias_por_estado_12m.M}}d | 🟢R:{{dias_por_estado_12m.R}}d | 🟡P:{{dias_por_estado_12m.P}}d</div>
     {% if anomalias %}<div class="alert">⚠️ {{', '.join(anomalias[:3])}}{{'...' if anomalias|length>3 else ''}}</div>{% endif %}
-    {% if dias_12m>=limite %}<div class="alert" style="background:#f8d7da;border-color:#dc3545;color:#842029">🔴 <strong>ALERTA:</strong> Superaste los {{limite}} días.</div>{% elif dias_12m>=150 %}<div class="alert">⚠️ <strong>Atención:</strong> {{dias_12m}}/{{limite}} días. Planifica.</div>{% endif %}
+    {% if dias_12m>=limite %}<div class="alert" style="background:#f8d7da;border-color:#dc3545;color:#842029">🔴 <strong>ALERTA:</strong> Superaste los {{limite}} días.</div>{% elif dias_12m>=150 %}<div class="alert">⚠️ <strong>Atención:</strong> {{dias_12m}}/{{limite}} días.</div>{% endif %}
   </div>
 
   <div class="grid-2">
@@ -271,8 +288,7 @@ html_template = """<!DOCTYPE html>
     <div class="card status-{{ca}}"><h3>🗓️ Año {{anio_act}}</h3><div class="metric" style="font-size:1.6rem">{{dias_anio}} días</div><span class="badge badge-{{'green' if dias_anio<150 else 'orange' if dias_anio<183 else 'red'}}">{{ea}}</span></div>
   </div>
 
-  <div class="card">
-    <h2>📈 Evolución mensual (M/R/P)</h2>
+  <div class="card"><h2>📈 Evolución mensual (M/R/P)</h2>
     <div class="legend"><div class="legend-item"><span class="dot" style="background:#3b82f6"></span>M</div><div class="legend-item"><span class="dot" style="background:#22c55e"></span>R</div><div class="legend-item"><span class="dot" style="background:#f59e0b"></span>P</div></div>
     <div class="chart-wrap"><canvas id="chart"></canvas></div>
   </div>
@@ -307,92 +323,105 @@ html_template = """<!DOCTYPE html>
 
 <script>
 // ==========================================
-// 🎬 ANIMACIÓN DE FONDO (VÉRTICES DINÁMICOS)
+// 🎬 ANIMACIÓN DE FONDO (VÉRTICES)
 // ==========================================
-const canvas = document.getElementById('bg-canvas');
-const ctx = canvas.getContext('2d');
-let particles = [];
-const particleCount = 60; // Cantidad de puntos
+(function() {
+  const canvas = document.getElementById('bg-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let particles = [];
+  const count = 50;
 
-function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
-window.addEventListener('resize', resize);
-resize();
-
-class Particle {
-  constructor() {
-    this.x = Math.random() * canvas.width;
-    this.y = Math.random() * canvas.height;
-    this.vx = (Math.random() - 0.5) * 1.2;
-    this.vy = (Math.random() - 0.5) * 1.2;
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
   }
-  update() {
-    this.x += this.vx; this.y += this.vy;
-    if(this.x < 0 || this.x > canvas.width) this.vx *= -1;
-    if(this.y < 0 || this.y > canvas.height) this.vy *= -1;
-  }
-  draw() {
-    ctx.fillStyle = 'rgba(59,130,246,0.6)'; // Color de los puntos
-    ctx.beginPath(); ctx.arc(this.x, this.y, 2, 0, Math.PI*2); ctx.fill();
-  }
-}
+  window.addEventListener('resize', resize);
+  resize();
 
-for(let i=0; i<particleCount; i++) particles.push(new Particle());
-
-function animateBg() {
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  for(let i=0; i<particles.length; i++) {
-    particles[i].update(); particles[i].draw();
-    for(let j=i; j<particles.length; j++) {
-      const dx = particles[i].x - particles[j].x;
-      const dy = particles[i].y - particles[j].y;
-      const dist = Math.sqrt(dx*dx + dy*dy);
-      if(dist < 130) {
-        ctx.strokeStyle = `rgba(147,197,253, ${0.5 - dist/260})`; // Líneas conectoras
-        ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.moveTo(particles[i].x, particles[i].y); ctx.lineTo(particles[j].x, particles[j].y); ctx.stroke();
-      }
+  class P {
+    constructor() {
+      this.x = Math.random() * canvas.width;
+      this.y = Math.random() * canvas.height;
+      this.vx = (Math.random() - 0.5) * 1.5;
+      this.vy = (Math.random() - 0.5) * 1.5;
+      this.size = Math.random() * 2 + 1;
+    }
+    update() {
+      this.x += this.vx; this.y += this.vy;
+      if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+      if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+    }
+    draw() {
+      ctx.fillStyle = 'rgba(147,197,253,0.8)';
+      ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill();
     }
   }
-  requestAnimationFrame(animateBg);
-}
-animateBg();
+
+  for (let i = 0; i < count; i++) particles.push(new P());
+
+  function loop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (let i = 0; i < particles.length; i++) {
+      particles[i].update(); particles[i].draw();
+      for (let j = i; j < particles.length; j++) {
+        const dx = particles[i].x - particles[j].x;
+        const dy = particles[i].y - particles[j].y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 140) {
+          ctx.strokeStyle = `rgba(147,197,253, ${0.4 - dist / 350})`;
+          ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(particles[i].x, particles[i].y); ctx.lineTo(particles[j].x, particles[j].y); ctx.stroke();
+        }
+      }
+    }
+    requestAnimationFrame(loop);
+  }
+  loop();
+})();
 
 // ==========================================
 // 🔐 LÓGICA DE LOGIN
 // ==========================================
 function intentarLogin() {
-  const u = document.getElementById('user').value;
-  const p = document.getElementById('pass').value;
-  
-  // 🔑 VALIDACIÓN DE CREDENCIALES
-  if (u === 'admin' && p === 'admin') {
-    // Login exitoso
-    document.getElementById('login-screen').style.opacity = '0';
-    setTimeout(() => { document.getElementById('login-screen').style.display = 'none'; }, 500);
-    document.getElementById('main-app').classList.add('visible');
-    
-    // Inicializar componentes que necesitan DOM visible
-    iniciarApp(); 
-  } else {
-    // Login fallido
-    const err = document.getElementById('error-msg');
-    err.style.display = 'block';
-    document.getElementById('pass').value = '';
-    setTimeout(() => err.style.display = 'none', 3000);
-  }
+  const u = document.getElementById('user').value.trim();
+  const p = document.getElementById('pass').value.trim();
+  const btn = document.getElementById('btn-login');
+  const err = document.getElementById('error-msg');
+
+  btn.textContent = 'Verificando...'; btn.style.opacity = '0.7';
+
+  // Simular pequeño delay para UX
+  setTimeout(() => {
+    if (u === 'admin' && p === 'admin') {
+      // ✅ Éxito: Ocultar login y mostrar app
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('main-app').style.display = 'block';
+      
+      // Iniciar componentes
+      iniciarApp();
+    } else {
+      // ❌ Error
+      err.style.display = 'block';
+      document.getElementById('pass').value = '';
+      btn.textContent = 'INGRESAR'; btn.style.opacity = '1';
+      setTimeout(() => err.style.display = 'none', 3000);
+    }
+  }, 400);
 }
-// Permitir Enter para entrar
-document.getElementById('pass').addEventListener('keypress', function (e) { if (e.key === 'Enter') intentarLogin(); });
+document.getElementById('pass').addEventListener('keypress', function(e) { if (e.key === 'Enter') intentarLogin(); });
 
 // ==========================================
-// ⚙️ INICIALIZACIÓN DE LA APP (TRAS LOGIN)
+// ⚙️ APP PRINCIPAL
 // ==========================================
 function iniciarApp() {
   try {
-    const C = {{ config_json | safe }};
-    console.log('✅ App Iniciada | Viajes:', C.viajes.length);
+    // Parsear datos inyectados
+    const cfgStr = document.getElementById('config-data')?.textContent;
+    if (!cfgStr) throw new Error("Datos de configuración no encontrados.");
+    const C = JSON.parse(cfgStr);
+    console.log('✅ App Iniciada | Viajes:', C.viajes.length, '| Meses:', C.lbl.length);
 
-    // Helpers
     const parseFecha = s => { const p=s?.trim().split('/')||[]; return new Date(+p[2],+p[1]-1,+p[0]); };
     const regex = /^\\d{1,2}\\/\\d{1,2}\\/\\d{4}$/;
     const showRes = (id, html) => { const e=document.getElementById(id); if(e){e.innerHTML=html; e.classList.remove('hidden');} };
@@ -409,22 +438,24 @@ function iniciarApp() {
     };
     window.filtro('todos');
 
-    // 2. GRÁFICO DE LÍNEAS
-    const ctxChart = document.getElementById('chart');
-    if (ctxChart && C.lbl && C.lbl.length > 0) {
-      new Chart(ctxChart, {
-        type: 'line',
-         {
-          labels: C.lbl,
-          datasets: [
-            { label: 'Migraciones',  C.vM, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', tension: 0.3, fill: true },
-            { label: 'Registro',  C.vR, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.1)', tension: 0.3, fill: true },
-            { label: 'Proyectado', data: C.vP, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', tension: 0.3, fill: true }
-          ]
-        },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(0,0,0,0.85)', titleFont: { size: 11 }, bodyFont: { size: 10 }, padding: 8 } }, scales: { x: { ticks: { maxRotation: 45, autoSkip: true, maxTicksLimit: 10, font: { size: 9 } }, grid: { display: false } }, y: { beginAtZero: true, ticks: { stepSize: 5, font: { size: 9 } }, grid: { color: 'rgba(0,0,0,0.05)' } } } }
-      });
-    }
+    // 2. GRÁFICO (Ejecutar con delay para asegurar dimensiones)
+    setTimeout(() => {
+      const ctxChart = document.getElementById('chart');
+      if (ctxChart && C.lbl && C.lbl.length > 0) {
+        new Chart(ctxChart, {
+          type: 'line',
+           {
+            labels: C.lbl,
+            datasets: [
+              { label: 'Migraciones',  C.vM, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', tension: 0.3, fill: true },
+              { label: 'Registro',  C.vR, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.1)', tension: 0.3, fill: true },
+              { label: 'Proyectado',  C.vP, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', tension: 0.3, fill: true }
+            ]
+          },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(0,0,0,0.85)', titleFont: { size: 11 }, bodyFont: { size: 10 }, padding: 8 } }, scales: { x: { ticks: { maxRotation: 45, autoSkip: true, maxTicksLimit: 10, font: { size: 9 } }, grid: { display: false } }, y: { beginAtZero: true, ticks: { stepSize: 5, font: { size: 9 } }, grid: { color: 'rgba(0,0,0,0.05)' } } } }
+        });
+      }
+    }, 300);
 
     // 3. PROYECCIONES
     let pc = 1;
@@ -454,10 +485,8 @@ function iniciarApp() {
       b.classList.remove('loading'); b.textContent='💾 Guardar';
       if(ok>0){pc=1; window.renderProy();}
     };
-    // Cargar proyecciones iniciales
-    window.renderProy();
 
-  } catch(err) { console.error('❌ Error JS:', err); }
+  } catch(err) { console.error('❌ Error Crítico:', err); alert('Error al cargar la app: ' + err.message); }
 }
 </script>
 </body>
@@ -468,7 +497,7 @@ function iniciarApp() {
 # =============================================================================
 
 # 1. JSON solo para JavaScript (frontend interactivo)
-config_json = json.dumps({
+config_json_str = json.dumps({
     "app_url": APPS_SCRIPT_URL,
     "dias_12m": t12m, "dias_por_estado_12m": d12m,
     "dias_anio": tanio, "dias_por_estado_anio": danio,
@@ -484,7 +513,7 @@ html_content = Template(html_template).render(
     ca=ca, ea=ea, ma=ma,
     anio_act=hoy.year, dias_anio=tanio, dias_por_estado_anio=danio,
     ranking=ranking,
-    config_json=config_json
+    config_json_str=config_json_str
 )
 
 # 3. Guardar archivo
