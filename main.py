@@ -112,18 +112,31 @@ for k in sorted(grafica):
     vM.append(grafica[k]["M"]); vR.append(grafica[k]["R"]); vP.append(grafica[k]["P"])
 
 ranking = {}
-for est in ["M","R","P"]:
-    fil = viajes_df[(viajes_df["estado"]==est) & (~viajes_df["en_curso"])]
-    # ✅ Sumar DÍAS por país, no contar viajes
+for est in ["M", "R", "P"]:
+    # 1. Filtrar solo viajes finalizados (excluye en_curso)
+    fil = viajes_df[(viajes_df["estado"] == est) & (~viajes_df["en_curso"])].copy()
+    
+    # 2. Sumar DÍAS exactos por país (evita contar viajes, suma duración real)
     dias_por_pais = defaultdict(int)
     for _, r in fil.iterrows():
-        dias_por_pais[r["pais"]] += r["dias"]
-    # Ordenar descendente y tomar top 5
+        dias_por_pais[r["pais"]] += int(r["dias"])
+    
+    # 3. Ordenar descendente y tomar top 5
+    top_5 = sorted(dias_por_pais.items(), key=lambda x: x[1], reverse=True)[:5]
+    
+    # 4. Generar lista para el HTML
     ranking[est] = [
-        {"pais":p, "dias":d, "iso": PAIS_ISO.get(p.lower().strip(), "xx")} 
-        for p, d in sorted(dias_por_pais.items(), key=lambda x: x[1], reverse=True)[:5]
+        {"pais": p, "dias": d, "iso": PAIS_ISO.get(p.lower().strip(), "xx")} 
+        for p, d in top_5
     ]
-
+    
+    # 🔍 DEBUG: Muestra en consola EXACTAMENTE lo que se está calculando
+    print(f"📊 Ranking {est} | Países encontrados: {len(top_5)}")
+    for p, d in top_5:
+        print(f"   • {p}: {d} días")
+    if len(fil) == 0:
+        print(f"   ⚠️ No hay viajes finalizados con estado {est}")
+        
 viajes_js = []
 if not viajes_df.empty:
     for _, r in viajes_df.iterrows():
