@@ -321,6 +321,8 @@ html_template = """<!DOCTYPE html>
 
 <div class="footer">Cálculo según Art. 7° LIR. No sustituye asesoría tributaria.</div>
 
+    return result
+
 def calcular_grafica_mensual(vdf):
     """Retorna desglose mensual por estado M/R/P usando regla SUNAT"""
     datos = defaultdict(lambda: {"M": 0, "R": 0, "P": 0})
