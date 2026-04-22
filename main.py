@@ -1,5 +1,5 @@
 # =============================================================================
-# CONTROL SUNAT - VERSIÓN FINAL VALIDADA
+# CONTROL SUNAT - VERSIÓN FINAL (Animación visible en pantalla de inicio)
 # =============================================================================
 import os, json, pandas as pd, gspread
 from jinja2 import Template
@@ -104,7 +104,7 @@ for est in ["M","R","P"]:
     for _, r in fil.iterrows(): dias_p[r["pais"]] += int(r["dias"])
     ranking[est] = [{"pais":p,"dias":d,"iso":PAIS_ISO.get(p.lower().strip(),"xx")} for p,d in sorted(dias_p.items(), key=lambda x: x[1], reverse=True)[:5]]
 
-# 🔑 SERIALIZACIÓN SEGURA (100% compatible con JSON)
+# 🔑 SERIALIZACIÓN SEGURA
 viajes_js = []
 if not viajes_df.empty:
     for _, r in viajes_df.iterrows():
@@ -125,7 +125,7 @@ config_data = {
 config_str = json.dumps(config_data, ensure_ascii=False)
 
 # =============================================================================
-# PLANTILLA HTML (ESTRUCTURA ESTÁNDAR, SIN AMBIGÜEDADES)
+# PLANTILLA HTML (FONDO DINÁMICO VISIBLE EN PANTALLA DE INICIO)
 # =============================================================================
 html_template = """<!DOCTYPE html>
 <html lang="es">
@@ -136,14 +136,14 @@ html_template = """<!DOCTYPE html>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:system-ui,-apple-system,sans-serif;background:#f4f6f8;overflow-x:hidden}
+  body{font-family:system-ui,-apple-system,sans-serif;overflow-x:hidden;background:#0b1120}
   #bg{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0}
-  #login{position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(135deg,#0b1120,#1e293b);z-index:100;display:flex;align-items:center;justify-content:center}
-  #box{background:rgba(255,255,255,0.95);padding:30px;border-radius:12px;width:90%;max-width:340px;text-align:center;box-shadow:0 15px 40px rgba(0,0,0,0.4)}
+  #login{position:fixed;top:0;left:0;width:100%;height:100%;z-index:100;display:flex;align-items:center;justify-content:center;background:rgba(11,17,32,0.55)}
+  #box{background:rgba(255,255,255,0.92);backdrop-filter:blur(12px);padding:30px;border-radius:12px;width:90%;max-width:340px;text-align:center;box-shadow:0 15px 40px rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.15)}
   #box input{width:100%;padding:12px;margin:10px 0;border:1px solid #cbd5e1;border-radius:6px;font-size:1rem}
   #box button{width:100%;padding:12px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:1rem;cursor:pointer;font-weight:600}
   #err{color:#dc2626;margin-top:8px;display:none;font-size:0.85rem}
-  #app{display:none;padding:12px;position:relative;z-index:50}
+  #app{display:none;padding:12px;position:relative;z-index:50;background:#f4f6f8;min-height:100vh}
   .card{background:#fff;border-radius:10px;padding:16px;margin-bottom:12px;box-shadow:0 2px 6px rgba(0,0,0,0.06)}
   .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:480px){.grid-2{grid-template-columns:1fr}}
   .chart-wrap{position:relative;height:240px;margin-top:8px;background:#fafafa;border-radius:8px}
@@ -195,7 +195,7 @@ html_template = """<!DOCTYPE html>
 
 <script id="cfg" type="application/json">{{ config_str | safe }}</script>
 <script>
-// 1. ANIMACIÓN VÉRTICES
+// 1. ANIMACIÓN VÉRTICES (Fondo principal)
 document.addEventListener('DOMContentLoaded', () => {
   const cvs = document.getElementById('bg'), ctx = cvs.getContext('2d');
   let pts = [], w, h;
@@ -264,12 +264,12 @@ function iniciarApp() {
       if(ctx && C.lbl.length > 0) {
         new Chart(ctx, {
           type: 'line',
-          data: {
+           {
             labels: C.lbl,
             datasets: [
-              { label: 'Migraciones', data: C.vM, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.3 },
-              { label: 'Registro', data: C.vR, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.1)', fill: true, tension: 0.3 },
-              { label: 'Proyectado', data: C.vP, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: true, tension: 0.3 }
+              { label: 'Migraciones',  C.vM, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.3 },
+              { label: 'Registro',  C.vR, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.1)', fill: true, tension: 0.3 },
+              { label: 'Proyectado',  C.vP, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: true, tension: 0.3 }
             ]
           },
           options: {
@@ -304,4 +304,4 @@ html_final = Template(html_template).render(
 
 with open("index.html", "w", encoding="utf-8") as f:
     f.write(html_final)
-print("✅ index.html generado | Login: admin / admin")
+print("✅ index.html generado | Login: admin / admin | Fondo dinámico activo desde el inicio")
