@@ -82,14 +82,16 @@ def contar_dias_por_estado(vdf, fecha_ref, dias=365):
     return result
 
 def calcular_grafica_mensual(vdf):
-    """Retorna datos para gráfico apilado: {mes: {estado: días}} desde 2000."""
+    """Retorna {mes: {M:x, R:y, P:z}} usando EXACTAMENTE la misma regla SUNAT (-1 día)"""
     datos = defaultdict(lambda: {"M": 0, "R": 0, "P": 0})
     if vdf.empty: return datos
     
     for _, v in vdf.iterrows():
+        # Regla SUNAT estricta: excluye día de salida y día de retorno
         eff_s = v["salida"] + timedelta(days=1)
         eff_e = v["entrada"] - timedelta(days=1)
-        if eff_s > eff_e: continue
+        if eff_s > eff_e: continue  # Viaje de 0 o 1 día no cuenta
+        
         cur = eff_s
         while cur <= eff_e:
             if cur.year >= 2000:
@@ -320,100 +322,24 @@ html_template = """<!DOCTYPE html>
 
 <div class="footer">Cálculo según Art. 7° LIR. No sustituye asesoría tributaria.</div>
 
-<script id="app-config" type="application/json">{{ config_json | safe }}</script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  try {
-    const cfg = JSON.parse(document.getElementById('app-config').textContent);
-    console.log('✅ Config OK | Viajes:', cfg.viajes.length, '| Chart:', cfg.chart_labels.length);
-
-    const parseFecha = s => { const p=s.trim().split('/'); return new Date(+p[2], +p[1]-1, +p[0]); };
-    const diasEntre = (f1,f2) => Math.max(0, Math.floor((parseFecha(f2)-parseFecha(f1)-864e5)/864e5));
-    const toggle = id => document.getElementById(id).classList.toggle('hidden');
-    const showRes = (id, html) => { const el=document.getElementById(id); el.innerHTML=html; el.classList.remove('hidden'); };
-    const regex = /^\\d{1,2}\\/\\d{1,2}\\/\\d{4}$/;
-
-    document.getElementById('btn-proj').onclick = () => {
-      toggle('form-proj');
-      if (!document.getElementById('form-proj').classList.contains('hidden')) renderProjectionForms();
-    };
-
-    let projCount = 1;
-    function renderProjectionForms() {
-      const c = document.getElementById('projections-container'); c.innerHTML = '';
-      for (let i=1; i<=Math.min(projCount,3); i++) {
-        c.innerHTML += `<div style="border:1px solid #dee2e6;border-radius:8px;padding:10px;margin-bottom:8px;background:#fff">
-          <div style="font-weight:600;margin-bottom:6px">Itinerario #${i}</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-            <div class="form-group"><label>Salida</label><input type="text" id="proj-s-${i}" placeholder="DD/MM/YYYY"></div>
-            <div class="form-group"><label>Retorno</label><input type="text" id="proj-r-${i}" placeholder="DD/MM/YYYY"></div>
-          </div>
-          <div class="form-group"><label>País</label><input type="text" id="proj-pais-${i}" placeholder="Ej: España"></div>
-          <button class="btn btn-outline" onclick="if(projCount>1){projCount--;renderProjectionForms()}" style="padding:6px 10px;font-size:0.8rem">🗑️ Quitar</button>
-        </div>`;
-      }
-    }
-    document.getElementById('btn-add-projection').onclick = () => { if(projCount<3){projCount++;renderProjectionForms()} else alert('Máx 3 proyecciones'); };
-
-    document.getElementById('btn-save-proj').onclick = async function() {
-      const btn=this, res='res-proj'; btn.classList.add('loading'); btn.textContent='⏳...';
-      let ok=0;
-      for(let i=1;i<=projCount;i++){
-        const s=document.getElementById(`proj-s-${i}`)?.value, r=document.getElementById(`proj-r-${i}`)?.value, p=document.getElementById(`proj-pais-${i}`)?.value;
-        if(!s||!r||!p) continue;
-        if(!regex.test(s)||!regex.test(r)) { showRes(res,'❌ Usa DD/MM/YYYY'); btn.classList.remove('loading'); btn.textContent='💾 Guardar proyecciones'; return; }
-        if(parseFecha(r)<parseFecha(s)) { showRes(res,'❌ Retorno > Salida'); btn.classList.remove('loading'); btn.textContent='💾 Guardar proyecciones'; return; }
-        try {
-          await fetch(cfg.app_url, {method:'POST', headers:{'Content-Type':'text/plain'}, body:JSON.stringify({tipo:'SALIDA', fecha:s, pais:p, estado:'P'})});
-          await fetch(cfg.app_url, {method:'POST', headers:{'Content-Type':'text/plain'}, body:JSON.stringify({tipo:'ENTRADA', fecha:r, pais:p, estado:'P'})});
-          ok++;
-        } catch(e){}
-      }
-      showRes(res, ok>0?`✅ ${ok} proyección(es) guardada(s). Refresca la página.`:'❌ Error al guardar.');
-      btn.classList.remove('loading'); btn.textContent='💾 Guardar proyecciones';
-      if(ok>0){projCount=1; renderProjectionForms();}
-    };
-
-    window.filtrarTabla = filtro => {
-      const tb = document.getElementById('tabla-body'); tb.innerHTML='';
-      const datos = filtro==='todos' ? cfg.viajes : cfg.viajes.filter(v=>v.estado===filtro);
-      if(datos.length===0){ tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:#6c757d;padding:20px">Sin datos</td></tr>'; return; }
-      datos.slice().reverse().forEach(v => {
-        const act = v.estado==='P' ? `<button class="btn-edit" onclick="alert('Para editar: elimina la proyección en Sheets y vuelve a registrarla.')">✏️ Editar</button>` : `<span style="font-size:0.75rem;color:#6c757d">Solo lectura</span>`;
-        tb.innerHTML += `<tr><td>${v.salida_str.split('-').reverse().join('/')}</td><td>${v.entrada_str.split('-').reverse().join('/')}</td><td>${v.pais}</td><td style="text-align:right">${v.dias}</td><td><span class="badge badge-${v.estado}">${v.estado}</span></td><td>${act}</td></tr>`;
-      });
-    };
-    filtrarTabla('todos');
-
-    // ✅ GRÁFICO APILADO (SINTAXIS CORREGIDA)
-    const ctx = document.getElementById('chart');
-    if (!cfg.chart_labels || cfg.chart_labels.length === 0) {
-      ctx.parentElement.innerHTML = '<p style="text-align:center;color:#6c757d;padding:40px">📊 Sin datos para graficar.</p>';
-    } else {
-      new Chart(ctx, {
-        type: 'bar',
-         {
-          labels: cfg.chart_labels,
-          datasets: [
-            { label: 'Migraciones',  cfg.chart_M, backgroundColor: '#3b82f6', stack: 'Stack 0' },
-            { label: 'Registro',  cfg.chart_R, backgroundColor: '#22c55e', stack: 'Stack 0' },
-            { label: 'Proyectado',  cfg.chart_P, backgroundColor: '#f59e0b', stack: 'Stack 0' }
-          ]
-        },
-        options: {
-          responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
-          plugins: { legend: { display: false }, tooltip: { enabled: true, backgroundColor: 'rgba(0,0,0,0.85)', titleFont: { size: 11 }, bodyFont: { size: 10 }, padding: 6 } },
-          scales: {
-            x: { stacked: true, ticks: { maxRotation: 45, autoSkip: true, maxTicksLimit: 12, font: { size: 9 } }, grid: { display: false } },
-            y: { stacked: true, beginAtZero: true, ticks: { stepSize: 10, font: { size: 9 } }, grid: { color: 'rgba(0,0,0,0.05)' } }
-          }
-        }
-      });
-      console.log('✅ Gráfico renderizado');
-    }
-  } catch(err) { console.error('❌ Error JS:', err); }
-});
-</script>
+def calcular_grafica_mensual(vdf):
+    """Retorna {mes: {M:x, R:y, P:z}} usando EXACTAMENTE la misma regla SUNAT (-1 día)"""
+    datos = defaultdict(lambda: {"M": 0, "R": 0, "P": 0})
+    if vdf.empty: return datos
+    
+    for _, v in vdf.iterrows():
+        # Regla SUNAT estricta: excluye día de salida y día de retorno
+        eff_s = v["salida"] + timedelta(days=1)
+        eff_e = v["entrada"] - timedelta(days=1)
+        if eff_s > eff_e: continue  # Viaje de 0 o 1 día no cuenta
+        
+        cur = eff_s
+        while cur <= eff_e:
+            if cur.year >= 2000:
+                key = f"{cur.year}-{cur.month:02d}"
+                datos[key][v["estado"]] += 1
+            cur += timedelta(days=1)
+    return dict(sorted(datos.items()))
 </body>
 </html>"""
 # =============================================================================
