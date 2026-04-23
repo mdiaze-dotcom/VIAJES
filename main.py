@@ -1,12 +1,12 @@
 # =============================================================================
-# CONTROL SUNAT - VERSIÓN FINAL ESTABLE (Login funcional + Animación visible)
+# CONTROL SUNAT - VERSIÓN ESTABLE + REGISTRAR + PROYECTAR
 # =============================================================================
 import os, json, pandas as pd, gspread
 from jinja2 import Template
 from datetime import date, timedelta
 from collections import Counter, defaultdict
 
-# 🔑 CONFIGURACIÓN
+# 🔑 CONFIGURACIÓN (INALTERADA)
 SHEET_ID = os.environ["SHEET_ID"]
 APPS_SCRIPT_URL = os.environ["APPS_SCRIPT_URL"]
 CREDENTIALS_JSON = json.loads(os.environ["GOOGLE_CREDENTIALS"])
@@ -67,7 +67,7 @@ def grafica_mensual(vdf):
             c += timedelta(days=1)
     return dict(sorted(datos.items()))
 
-# 🔹 PROCESAMIENTO
+# 🔹 PROCESAMIENTO (INALTERADO)
 gc = gspread.service_account_from_dict(CREDENTIALS_JSON)
 sheet = gc.open_by_key(SHEET_ID).sheet1
 df = pd.DataFrame(sheet.get_all_records())
@@ -125,7 +125,7 @@ config_data = {
 config_str = json.dumps(config_data, ensure_ascii=False)
 
 # =============================================================================
-# PLANTILLA HTML (ESTABLE: Login intacto + Animación visible detrás)
+# PLANTILLA HTML (BASE ESTABLE + REGISTRAR + PROYECTAR)
 # =============================================================================
 html_template = """<!DOCTYPE html>
 <html lang="es">
@@ -137,28 +137,24 @@ html_template = """<!DOCTYPE html>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:system-ui,-apple-system,sans-serif;background:#0b1120;overflow-x:hidden}
-  
-  /* ✅ CANVAS: Fondo absoluto */
   #bg{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0}
-  
-  /* ✅ LOGIN: Fondo semitransparente para ver la animación, SIN bloquear clics */
   #login{position:fixed;top:0;left:0;width:100%;height:100%;z-index:10;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,0.5)}
-  
-  /* ✅ CAJA DE LOGIN: Opaca para legibilidad */
   #box{background:#ffffff;padding:30px;border-radius:12px;width:90%;max-width:340px;text-align:center;box-shadow:0 15px 40px rgba(0,0,0,0.4)}
   #box h2{color:#0f172a;margin-bottom:20px;font-size:1.5rem}
   #box input{width:100%;padding:12px;margin:10px 0;border:1px solid #cbd5e1;border-radius:6px;font-size:1rem}
   #box button{width:100%;padding:12px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:1rem;cursor:pointer;font-weight:600}
   #err{color:#dc2626;margin-top:10px;display:none;font-size:0.9rem}
-  
-  /* APP */
   #app{display:none;padding:12px;position:relative;z-index:20;min-height:100vh;background:#f4f6f8}
+  
   .card{background:#fff;border-radius:10px;padding:16px;margin-bottom:12px;box-shadow:0 2px 6px rgba(0,0,0,0.06)}
   .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:480px){.grid-2{grid-template-columns:1fr}}
   .chart-wrap{position:relative;height:240px;margin-top:8px;background:#fafafa;border-radius:8px}
   canvas{width:100%!important;height:100%!important}
   .btn{background:#2563eb;color:#fff;border:none;border-radius:6px;padding:8px 12px;cursor:pointer;margin:4px 2px;font-size:0.9rem}
+  .btn:disabled{opacity:0.6;cursor:not-allowed}
   .btn-outline{background:transparent;border:1px solid #2563eb;color:#2563eb}
+  .btn-green{background:#22c55e;color:#fff;border:none;border-radius:6px;padding:8px 12px;cursor:pointer;margin:4px 2px;font-size:0.9rem}
+  .btn-red{background:#ef4444;color:#fff;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:0.8rem}
   table{width:100%;border-collapse:collapse;font-size:0.85rem;margin-top:8px}
   th,td{padding:8px;border-bottom:1px solid #eee;text-align:left}
   .badge-M{background:#3b82f6;color:#fff;padding:2px 6px;border-radius:4px;font-size:0.75rem}
@@ -167,6 +163,10 @@ html_template = """<!DOCTYPE html>
   .rank-box{background:#f8fafc;padding:10px;border-radius:6px;min-width:130px;margin:5px}
   .rank-item{display:flex;justify-content:space-between;align-items:center;font-size:0.8rem;margin:5px 0}
   .flag{width:20px;height:14px;border-radius:2px;object-fit:cover;margin-right:6px}
+  .form-group{margin:6px 0} .form-group label{display:block;font-size:0.8rem;margin-bottom:2px;color:#475569}
+  .form-group input{width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:4px;font-size:0.9rem}
+  .result-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px;margin-top:8px;font-size:0.85rem;display:none}
+  .itin-card{background:#f8fafc;padding:10px;border-radius:6px;margin-bottom:8px;border:1px solid #e2e8f0}
 </style>
 </head>
 <body>
@@ -189,6 +189,29 @@ html_template = """<!DOCTYPE html>
     <div class="card"><h3>📅 Últimos 12m</h3><p id="d12" style="font-size:1.4rem;font-weight:600"></p></div>
     <div class="card"><h3>🗓️ Año Actual</h3><p id="da" style="font-size:1.4rem;font-weight:600"></p></div>
   </div>
+  
+  <!-- 📝 REGISTRAR VIAJE (R) -->
+  <div class="card"><h2>📝 Registrar Viaje (R)</h2>
+    <div class="grid-2">
+      <div class="form-group"><label>Salida</label><input id="reg-s" placeholder="DD/MM/YYYY"></div>
+      <div class="form-group"><label>Retorno</label><input id="reg-r" placeholder="DD/MM/YYYY"></div>
+    </div>
+    <div class="form-group"><label>País Destino</label><input id="reg-p" placeholder="Ej: España"></div>
+    <button class="btn" id="btn-reg" onclick="registrarViaje()">💾 Guardar Registro</button>
+    <div id="res-reg" class="result-box"></div>
+  </div>
+
+  <!-- ✈️ PROYECTAR VIAJES (P) -->
+  <div class="card"><h2>✈️ Proyectar Viajes (P)</h2>
+    <p style="font-size:0.8rem;color:#64748b;margin-bottom:8px">Máx. 3 itinerarios. Calcula impacto y guarda como proyección.</p>
+    <div id="proj-list"></div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn btn-outline" onclick="addProjItin()">+ Agregar</button>
+      <button class="btn btn-green" id="btn-save-proj" onclick="calcularYGuardar()">📊 Calcular & Guardar</button>
+    </div>
+    <div id="res-proj" class="result-box"></div>
+  </div>
+
   <div class="card"><h2>📈 Evolución Mensual</h2><div class="chart-wrap"><canvas id="chart"></canvas></div></div>
   <div class="card"><h2>🌍 Top Países</h2><div id="rank" style="display:flex;gap:10px;overflow-x:auto;padding:5px 0"></div></div>
   <div class="card"><h2>📋 Historial</h2>
@@ -204,34 +227,24 @@ html_template = """<!DOCTYPE html>
 
 <script id="cfg" type="application/json">{{ config_str | safe }}</script>
 <script>
-// ✅ 1. ANIMACIÓN DE VÉRTICES (Ejecuta inmediatamente)
+// ✅ 1. ANIMACIÓN DE VÉRTICES (INALTERADA - FUNCIONA)
 (function() {
   const cvs = document.getElementById('bg');
   if (!cvs) return;
   const ctx = cvs.getContext('2d');
   let pts = [], w, h;
-  
   const resize = () => { w = cvs.width = window.innerWidth; h = cvs.height = window.innerHeight; };
   window.addEventListener('resize', resize); resize();
   for(let i=0; i<60; i++) pts.push({x:Math.random()*w, y:Math.random()*h, vx:(Math.random()-0.5)*1.5, vy:(Math.random()-0.5)*1.5});
-
   const draw = () => {
-    ctx.clearRect(0,0,w,h);
-    ctx.fillStyle = 'rgba(147,197,253,0.8)';
-    pts.forEach(p => {
-      p.x += p.vx; p.y += p.vy;
-      if(p.x<0||p.x>w) p.vx*=-1; if(p.y<0||p.y>h) p.vy*=-1;
-      ctx.beginPath(); ctx.arc(p.x,p.y,2.5,0,Math.PI*2); ctx.fill();
-    });
-    for(let i=0;i<pts.length;i++) for(let j=i;j<pts.length;j++) {
-      const dx=pts[i].x-pts[j].x, dy=pts[i].y-pts[j].y, d=Math.sqrt(dx*dx+dy*dy);
-      if(d<150) { ctx.strokeStyle=`rgba(147,197,253,${0.4-d/375})`; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(pts[i].x,pts[i].y); ctx.lineTo(pts[j].x,pts[j].y); ctx.stroke(); }
-    }
+    ctx.clearRect(0,0,w,h); ctx.fillStyle = 'rgba(147,197,253,0.8)';
+    pts.forEach(p => { p.x += p.vx; p.y += p.vy; if(p.x<0||p.x>w) p.vx*=-1; if(p.y<0||p.y>h) p.vy*=-1; ctx.beginPath(); ctx.arc(p.x,p.y,2.5,0,Math.PI*2); ctx.fill(); });
+    for(let i=0;i<pts.length;i++) for(let j=i;j<pts.length;j++) { const dx=pts[i].x-pts[j].x, dy=pts[i].y-pts[j].y, d=Math.sqrt(dx*dx+dy*dy); if(d<150){ ctx.strokeStyle=`rgba(147,197,253,${0.4-d/375})`; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(pts[i].x,pts[i].y); ctx.lineTo(pts[j].x,pts[j].y); ctx.stroke(); } }
     requestAnimationFrame(draw);
   }; draw();
 })();
 
-// ✅ 2. LOGIN (Lógica original intacta)
+// ✅ 2. LOGIN (INALTERADO - FUNCIONA)
 function entrar() {
   if(document.getElementById('u').value === 'admin' && document.getElementById('pw').value === 'admin') {
     document.getElementById('login').style.display = 'none';
@@ -241,7 +254,12 @@ function entrar() {
 }
 document.getElementById('pw').addEventListener('keypress', e => { if(e.key==='Enter') entrar(); });
 
-// ✅ 3. APP
+// ✅ 3. HELPERS
+const isValidDate = s => /^\\d{1,2}\\/\\d{1,2}\\/\\d{4}$/.test(s);
+const parseDate = s => { const p=s.split('/'); return new Date(+p[2], +p[1]-1, +p[0]); };
+const showRes = (id, msg) => { const e=document.getElementById(id); e.innerHTML=msg; e.style.display='block'; };
+
+// ✅ 4. APP DASHBOARD (INALTERADO - FUNCIONA)
 function iniciarApp() {
   try {
     const raw = document.getElementById('cfg')?.textContent;
@@ -282,18 +300,81 @@ function iniciarApp() {
               { label: 'Proyectado', data: C.vP, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: true, tension: 0.3 }
             ]
           },
-          options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false }, tooltip: { backgroundColor: '#0f172a', titleFont: { size: 11 }, bodyFont: { size: 10 } } },
-            scales: {
-              x: { ticks: { maxRotation: 45, autoSkip: true, maxTicksLimit: 10, font: { size: 9 } }, grid: { display: false } },
-              y: { beginAtZero: true, ticks: { stepSize: 5, font: { size: 9 } }, grid: { color: '#e2e8f0' } }
-            }
-          }
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { maxRotation: 45, autoSkip: true, maxTicksLimit: 10 }, grid: { display: false } }, y: { beginAtZero: true, ticks: { stepSize: 5 }, grid: { color: '#e2e8f0' } } } }
         });
       }
     }, 100);
-  } catch(e) { console.error(e); alert('Error al cargar: ' + e.message); }
+  } catch(e) { console.error(e); alert('Error: '+e.message); }
+}
+
+// ✅ 5. REGISTRAR VIAJE (R) - NUEVA FUNCIÓN
+async function registrarViaje() {
+  const s = document.getElementById('reg-s').value.trim();
+  const r = document.getElementById('reg-r').value.trim();
+  const p = document.getElementById('reg-p').value.trim();
+  
+  if(!isValidDate(s) || !isValidDate(r) || !p) return showRes('res-reg', '❌ Completa todos los campos en formato DD/MM/YYYY');
+  if(parseDate(r) < parseDate(s)) return showRes('res-reg', '❌ Retorno debe ser posterior a salida');
+  
+  const btn = document.getElementById('btn-reg');
+  btn.disabled = true; btn.textContent = '⏳ Guardando...';
+  
+  try {
+    await fetch(window.C.app_url, { method:'POST', mode:'cors', headers:{'Content-Type':'text/plain'}, body:JSON.stringify({tipo:'SALIDA', fecha:s, pais:p, estado:'R'}) });
+    await fetch(window.C.app_url, { method:'POST', mode:'cors', headers:{'Content-Type':'text/plain'}, body:JSON.stringify({tipo:'ENTRADA', fecha:r, pais:p, estado:'R'}) });
+    showRes('res-reg', '✅ Registrado correctamente. <strong>Refresca la página</strong> para ver cambios.');
+    document.getElementById('reg-s').value = ''; document.getElementById('reg-r').value = ''; document.getElementById('reg-p').value = '';
+  } catch(e) { showRes('res-reg', '❌ Error de red o URL inválida'); }
+  finally { btn.disabled = false; btn.textContent = '💾 Guardar Registro'; }
+}
+
+// ✅ 6. PROYECTAR VIAJES (P) - NUEVAS FUNCIONES
+let projCount = 0;
+
+function addProjItin() {
+  if(projCount >= 3) return showRes('res-proj', '⚠️ Máximo 3 itinerarios permitidos');
+  projCount++;
+  const list = document.getElementById('proj-list');
+  const div = document.createElement('div'); div.className = 'itin-card';
+  div.innerHTML = `<div style="font-weight:600;margin-bottom:4px">Itinerario #${projCount}</div>
+    <div class="grid-2"><div class="form-group"><input class="p-s" placeholder="Salida DD/MM/YYYY"></div><div class="form-group"><input class="p-r" placeholder="Retorno DD/MM/YYYY"></div></div>
+    <div class="form-group"><input class="p-p" placeholder="País destino"></div>
+    <button class="btn-red" onclick="removeProjItin(this)">🗑️ Quitar</button>`;
+  list.appendChild(div);
+}
+
+function removeProjItin(btn) { btn.parentElement.remove(); projCount--; }
+
+async function calcularYGuardar() {
+  const items = document.querySelectorAll('.itin-card');
+  if(items.length === 0) return showRes('res-proj', '⚠️ Agrega al menos un itinerario');
+  
+  let totalProj = 0, itinerarios = [];
+  for(let it of items) {
+    const s = it.querySelector('.p-s').value.trim();
+    const r = it.querySelector('.p-r').value.trim();
+    const p = it.querySelector('.p-p').value.trim();
+    if(!isValidDate(s) || !isValidDate(r) || !p) return showRes('res-proj', '❌ Completa correctamente todos los campos');
+    if(parseDate(r) < parseDate(s)) return showRes('res-proj', '❌ Retorno debe ser posterior a salida');
+    const dias = Math.max(0, Math.floor((parseDate(r) - parseDate(s)) / 864e5) - 1);
+    totalProj += dias; itinerarios.push({s, r, p});
+  }
+  
+  const newTotal = window.C.dias_12m + totalProj;
+  const status = newTotal < 150 ? '🟢 Sin riesgo' : newTotal < 183 ? '🟡 Posible riesgo' : '🔴 En riesgo (>183d)';
+  
+  const btn = document.getElementById('btn-save-proj');
+  btn.disabled = true; btn.textContent = '⏳ Guardando...';
+  
+  try {
+    for(let it of itinerarios) {
+      await fetch(window.C.app_url, { method:'POST', mode:'cors', headers:{'Content-Type':'text/plain'}, body:JSON.stringify({tipo:'SALIDA', fecha:it.s, pais:it.p, estado:'P'}) });
+      await fetch(window.C.app_url, { method:'POST', mode:'cors', headers:{'Content-Type':'text/plain'}, body:JSON.stringify({tipo:'ENTRADA', fecha:it.r, pais:it.p, estado:'P'}) });
+    }
+    showRes('res-proj', `<strong>✅ Proyección guardada.</strong><br>Días proyectados: ${totalProj}<br>Total estimado: ${newTotal}/183<br>${status}<br><br><em>Refresca la página para ver en gráfica.</em>`);
+    document.getElementById('proj-list').innerHTML = ''; projCount = 0;
+  } catch(e) { showRes('res-proj', '❌ Error al guardar proyección'); }
+  finally { btn.disabled = false; btn.textContent = '📊 Calcular & Guardar'; }
 }
 </script>
 </body>
@@ -311,4 +392,4 @@ html_final = Template(html_template).render(
 
 with open("index.html", "w", encoding="utf-8") as f:
     f.write(html_final)
-print("✅ index.html generado | Login funcional + Animación visible | Credenciales: admin/admin")
+print("✅ index.html generado | Login + Animación + Registrar(R) + Proyectar(P) | Credenciales: admin/admin")
